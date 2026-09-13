@@ -92,10 +92,10 @@ closest region to Bangkok and keeps Lab 3's latency numbers honest.
 
 ```bash
 export REGION=southeastasia
-export RG=itcs355-<studentid>
+export RG=itcs355-<6688020>
 
 az group create --name $RG --location $REGION \
-  --tags course=itcs355 student=<studentid>
+  --tags course=itcs355 student=<6688020>
 ```
 
 Those tags are not decoration. `make teardown` finds resources by tag from Lab 3 onward, and
@@ -107,8 +107,8 @@ Storage account names are **globally unique, lowercase, 3–24 characters, lette
 only** — no hyphens. Registry names have the same rule. Put your student ID in both.
 
 ```bash
-export SA=itcs355<studentid>          # no hyphens, lowercase
-export ACR=itcs355<studentid>
+export SA=itcs355<6688020>          # no hyphens, lowercase
+export ACR=itcs355<6688020>
 
 az storage account create --name $SA --resource-group $RG \
   --location $REGION --sku Standard_LRS --kind StorageV2 \
@@ -168,15 +168,15 @@ committing it is an automatic deduction on the capstone.
 
 ```bash
 CLOUD_PROVIDER=azure
-PROJECT_ID=itcs355-<studentid>
+PROJECT_ID=itcs355-<6688020>
 REGION=southeastasia
 
-BLOB_URI=https://itcs355<studentid>.blob.core.windows.net/itcs355/itcs355
-CONTAINER_REGISTRY=itcs355<studentid>.azurecr.io/itcs355
+BLOB_URI=https://itcs355<6688020>.blob.core.windows.net/itcs355/itcs355
+CONTAINER_REGISTRY=itcs355<6688020>.azurecr.io/itcs355
 
 MLFLOW_TRACKING_URI=sqlite:///mlflow.db
 
-MODEL_REGISTRY_NAME=itcs355-<studentid>
+MODEL_REGISTRY_NAME=itcs355-<6688020>
 IDENTITY_REF=<your az login account, from `az account show --query user.name -o tsv`>
 
 BUDGET_LIMIT_THB=800

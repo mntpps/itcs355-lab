@@ -16,20 +16,156 @@ Hints for Lab 1:
 """
 from __future__ import annotations
 
-from typing import Any
+import subprocess
+from pathlib import Path
+from urllib.parse import urlparse
+
+from azure.identity import DefaultAzureCredential
+from azure.storage.blob import BlobServiceClient
 
 from cloudlayer.base import CloudAdapter
 
 
 class AzureAdapter(CloudAdapter):
+    def _blob_parts(self) -> tuple[str, str, str]:
+        """Parse BLOB_URI into account URL, container, and prefix."""
+        parsed = urlparse(self.cfg.blob_uri)
+
+        if parsed.scheme != "https" or not parsed.netloc.endswith(
+            ".blob.core.windows.net"
+        ):
+            raise ValueError(
+                "BLOB_URI must use https://<account>.blob.core.windows.net/"
+                "<container>/<prefix>"
+            )
+
+        account_url = f"{parsed.scheme}://{parsed.netloc}"
+        parts = parsed.path.strip("/").split("/")
+
+        if not parts or not parts[0]:
+            raise ValueError("BLOB_URI must include a container")
+
+        container = parts[0]
+        prefix = "/".join(parts[1:]).strip("/")
+
+        return account_url, container, prefix
+
     def upload(self, local_path: str, key: str) -> str:
-        raise NotImplementedError("TODO Lab 1: upload_blob into BLOB_URI, return the full URI")
+        account_url, container, prefix = self._blob_parts()
+
+        blob_name = "/".join(part for part in (prefix, key) if part)
+
+        credential = DefaultAzureCredential()
+        service = BlobServiceClient(
+            account_url=account_url,
+            credential=credential,
+        )
+
+        blob = service.get_blob_client(
+            container=container,
+            blob=blob_name,
+        )
+
+        with open(local_path, "rb") as file:
+            blob.upload_blob(file, overwrite=True)
+
+        return f"{account_url}/{container}/{blob_name}"
 
     def download(self, uri: str, local_path: str) -> None:
-        raise NotImplementedError("TODO Lab 1: download_blob, creating parent directories")
+        parsed = urlparse(uri)
+
+        if parsed.scheme != "https" or not parsed.netloc.endswith(
+            ".blob.core.windows.net"
+        ):
+            raise ValueError(
+                "Azure blob URI must use https://<account>.blob.core.windows.net/"
+            )
+
+        account_url = f"{parsed.scheme}://{parsed.netloc}"
+        parts = parsed.path.strip("/").split("/")
+
+        if len(parts) < 2:
+            raise ValueError("Azure blob URI must include container and blob name")
+
+        container = parts[0]
+        blob_name = "/".join(parts[1:])
+
+        credential = DefaultAzureCredential()
+        service = BlobServiceClient(
+            account_url=account_url,
+            credential=credential,
+        )
+
+        blob = service.get_blob_client(
+            container=container,
+            blob=blob_name,
+        )
+
+        destination = Path(local_path)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(destination, "wb") as file:
+            blob.download_blob().readinto(file)
 
     def push_image(self, local_tag: str) -> str:
-        raise NotImplementedError("TODO Lab 1: az acr login, push, return registry/repo@sha256:...")
+        registry_repo = self.cfg.container_registry.rstrip("/")
+
+        registry_host, repo = registry_repo.split("/", 1)
+        registry_name = registry_host.split(".", 1)[0]
+
+        tag = local_tag.rsplit(":", 1)[1]
+        remote_tag = f"{registry_repo}:{tag}"
+
+        subprocess.run(
+            ["az", "acr", "login", "--name", registry_name],
+            check=True,
+        )
+
+        subprocess.run(
+            ["docker", "tag", local_tag, remote_tag],
+            check=True,
+        )
+
+        result = subprocess.run(
+            ["docker", "push", remote_tag],
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+
+        output = result.stdout + result.stderr
+
+        digest = None
+        for line in output.splitlines():
+            if "digest:" in line.lower():
+                digest = line.split(":", 1)[1].strip()
+                break
+
+        if not digest or not digest.startswith("sha256:"):
+            inspect = subprocess.run(
+                [
+                    "docker",
+                    "image",
+                    "inspect",
+                    remote_tag,
+                    "--format",
+                    "{{index .RepoDigests 0}}",
+                ],
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+
+            repo_digest = inspect.stdout.strip()
+
+            if "@sha256:" not in repo_digest:
+                raise RuntimeError(
+                    f"Could not determine pushed image digest. Docker output:\n{output}"
+                )
+
+            digest = repo_digest.split("@", 1)[1]
+
+        return f"{registry_repo}@{digest}"
 
     # submit_training / register_model  -> Lab 2 (Azure ML command job + model registry)
     # deploy / invoke                   -> Lab 3 (managed online endpoint + deployment)

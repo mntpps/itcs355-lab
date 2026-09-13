@@ -21,7 +21,7 @@ whether a stranger can reproduce it is.
 make reproduce
 ```
 
-expected test_roc_auc: 0.848 ± 0.010
+expected test_roc_auc: 0.8482 ± 0.010
 
 Runtime: about 40 seconds on 4 cores. No cloud account or credentials needed for this command —
 that is deliberate, and it is why a grader can run it.
@@ -105,21 +105,23 @@ different seeds.
 
 ## Reproducibility trade-off
 
-**REPLACE with your answer, 100 words maximum.**
-
-Three things pin your build: hashed dependencies, a digest-pinned base image, and controlled
-seeds. Under real time pressure you would keep some and drop others.
-
-Which would you drop first, and what specifically breaks when you do? There is a defensible
-answer, and we compare answers in Session 2. An answer that refuses to choose scores zero.
+Under real time pressure, I would drop controlled seeds first. The hashed dependencies and
+digest-pinned base image ensure that the software environment remains reproducible, while
+the seed mainly controls randomness during data splitting and model training. Without a
+controlled seed, repeated training runs may produce slightly different metrics or model
+behavior, making exact reproduction harder. However, the same code and dependency versions
+can still be rebuilt and executed. Dropping dependency hashes or the base-image digest would
+be more disruptive because package versions or system libraries could silently change,
+potentially causing different behavior, failed builds, or inconsistent results.
 
 ---
 
 ## Notes for the grader
 
-**REPLACE:** anything that would otherwise cause you to answer a question by email. Non-obvious
-choices, known limitations, anything that behaves differently on your machine. A README that
-requires a conversation has failed the lab regardless of what the code does.
+Azure was used as the cloud provider. The DVC remote uses Azure Blob Storage with Azure CLI
+authentication and the storage account is configured through the DVC remote's account_name.
+The training container uses the pinned Python 3.11-slim image digest and installs Git so MLflow
+can record the commit SHA inside the container. The reproduced test ROC-AUC was 0.8482.
 
 ---
 
