@@ -121,15 +121,15 @@ can record the commit SHA inside the container. The reproduced test ROC-AUC was 
 
 ## Checklist before you submit
 
-- [ ] `make reproduce` works from a fresh clone, on a machine that is not yours
-- [ ] `make verify` passes against your claim line
-- [ ] `make test` — all tests pass
-- [ ] `make portability-audit` — clean
-- [ ] Image builds for `linux/amd64` and is pushed, digest-pinned
-- [ ] `dvc push` completed; a grader can `dvc pull`
-- [ ] Five or more tracked runs with params, metrics, data fingerprint, and commit SHA
-- [ ] Every **REPLACE** block above is gone (the course-materials block at the top stays)
-- [ ] `git log -p | grep -i -E "secret|password|AKIA|BEGIN PRIVATE"` returns nothing
+- [/] `make reproduce` works from a fresh clone, on a machine that is not yours
+- [/] `make verify` passes against your claim line
+- [/] `make test` — all tests pass
+- [/] `make portability-audit` — clean
+- [/] Image builds for `linux/amd64` and is pushed, digest-pinned
+- [/] `dvc push` completed; a grader can `dvc pull`
+- [/] Five or more tracked runs with params, metrics, data fingerprint, and commit SHA
+- [/] Every **REPLACE** block above is gone (the course-materials block at the top stays)
+- [/] `git log -p | grep -i -E "secret|password|AKIA|BEGIN PRIVATE"` returns nothing
 
 That last check is not optional. A credential in Git history is an automatic deduction in this
 course, and rotating it is your responsibility, not the grader's.
