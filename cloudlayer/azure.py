@@ -247,6 +247,22 @@ class AzureAdapter(CloudAdapter):
 
         return result
 
+    def register_model(self, model_uri: str, name: str) -> str:
+        '''Register an MLflow model in Azure ML and return its version.'''
+        from azure.ai.ml.constants import AssetTypes
+        from azure.ai.ml.entities import Model
+
+        ml_client = self._ml_client()
+
+        model = Model(
+            path=model_uri,
+            name=name,
+            type=AssetTypes.MLFLOW_MODEL,
+        )
+
+        registered = ml_client.models.create_or_update(model)
+        return str(registered.version)
+
     # submit_training / register_model  -> Lab 2 (Azure ML command job + model registry)
     # deploy / invoke                   -> Lab 3 (managed online endpoint + deployment)
     # emit_metric                       -> Lab 4 (Azure Monitor custom metric)
