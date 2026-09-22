@@ -22,6 +22,8 @@ from urllib.parse import urlparse
 
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
+from azure.ai.ml import MLClient, Input, Output, command
+from azure.ai.ml.entities import Environment, UserIdentityConfiguration
 
 from cloudlayer.base import CloudAdapter
 
@@ -166,6 +168,84 @@ class AzureAdapter(CloudAdapter):
             digest = repo_digest.split("@", 1)[1]
 
         return f"{registry_repo}@{digest}"
+
+    def _ml_client(self) -> MLClient:
+        workspace = __import__("os").environ.get("AZURE_ML_WORKSPACE")
+        if not workspace:
+            raise RuntimeError("AZURE_ML_WORKSPACE is not set")
+
+        credential = DefaultAzureCredential()
+        return MLClient(
+            credential=credential,
+            subscription_id=__import__("os").environ["AZURE_SUBSCRIPTION_ID"],
+            resource_group_name=self.cfg.project_id,
+            workspace_name=workspace,
+        )
+
+    def submit_training(self, image_uri: str, args: dict[str, object]) -> str:
+        """Submit an Azure ML command job for Lab 2."""
+        ml_client = self._ml_client()
+
+        input_uri = str(args.get("input_uri", self.cfg.blob_uri))
+        output_uri = str(args["output_uri"])
+        compute = str(args.get("compute", "itcs3556688020-cpu"))
+        experiment_name = str(args.get("experiment", "itcs355-lab2"))
+
+        job = command(
+            display_name="itcs355-lab2-training",
+            experiment_name=experiment_name,
+            code=".",
+            command=str(args["command"]),
+            environment=Environment(
+                image=image_uri,
+                name="itcs355-lab2-env",
+            ),
+            compute=compute,
+            inputs={
+                "data": Input(
+                    type="uri_file",
+                    path=input_uri,
+                    mode="download",
+                )
+            },
+            outputs={
+                "artifacts": Output(
+                    type="uri_folder",
+                    path=output_uri,
+                    mode="rw_mount",
+                )
+            },
+        )
+
+        created = ml_client.jobs.create_or_update(job)
+        return created.name
+
+    def wait_training(self, job_id: str) -> dict[str, object]:
+        import time
+
+        ml_client = self._ml_client()
+
+        while True:
+            job = ml_client.jobs.get(job_id)
+            status = str(job.status)
+
+            print(f"Azure ML job {job_id}: {status}")
+
+            if status.upper().endswith(("COMPLETED", "FAILED", "CANCELED", "NOT_RESPONDING")):
+                break
+
+            time.sleep(10)
+
+        result = {
+            "job_id": job.name,
+            "status": status,
+            "studio_url": getattr(job, "studio_url", None),
+        }
+
+        if not status.upper().endswith("COMPLETED"):
+            raise RuntimeError(f"Azure ML training job failed: {result}")
+
+        return result
 
     # submit_training / register_model  -> Lab 2 (Azure ML command job + model registry)
     # deploy / invoke                   -> Lab 3 (managed online endpoint + deployment)

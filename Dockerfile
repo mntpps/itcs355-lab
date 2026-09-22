@@ -7,9 +7,9 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
 WORKDIR /build
 
 # Dependencies first so this layer caches independently of your source.
-COPY requirements.txt ./
+COPY requirements-train.txt ./
 
-RUN pip install --require-hashes --prefix=/install -r requirements.txt
+RUN pip install --require-hashes --prefix=/install -r requirements-train.txt
 
 
 FROM python@sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9b73661b41d6bab25604534 AS runtime
@@ -24,7 +24,7 @@ ENV PYTHONUNBUFFERED=1 \
 
 COPY --from=builder /install /usr/local
 WORKDIR /app
-RUN mkdir -p /app/mlruns /app/reports && chown -R runner:runner /app
+RUN mkdir -p /app/data/raw /app/mlruns /app/reports && chown -R runner:runner /app
 COPY --chown=runner:runner src/ ./src/
 COPY --chown=runner:runner cloudlayer/ ./cloudlayer/
 COPY --chown=runner:runner scripts/ ./scripts/

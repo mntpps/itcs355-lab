@@ -3,9 +3,9 @@
 #   pip-compile --generate-hashes requirements.in -o requirements.txt
 # Commit both files. The lock file is what makes the build reproducible.
 scikit-learn==1.8.0
-pandas==3.0.2
+pandas==2.3.3
 numpy==2.4.4
-mlflow==3.16.0
+mlflow==3.15.0
 pytest==9.1.1
 PyYAML==6.0.3
 joblib==1.4.2
@@ -15,3 +15,5 @@ httpx2==2.12.0
 azure-storage-blob
 azure-identity
 azure-containerregistry
+azure-ai-ml
+azureml-mlflow==1.62.0.post6
