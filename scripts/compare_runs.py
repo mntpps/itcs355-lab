@@ -19,6 +19,16 @@ import pandas as pd
 from src import config
 
 
+def to_markdown_table(df) -> str:
+    """Render a Markdown table without requiring the unpinned tabulate package."""
+    cols = [str(c) for c in df.columns]
+    rows = [[("" if v is None else str(v)) for v in rec] for rec in df.itertuples(index=False)]
+    width = [max(len(cols[i]), *(len(r[i]) for r in rows)) if rows else len(cols[i]) for i in range(len(cols))]
+    out = ["| " + " | ".join(c.ljust(width[i]) for i, c in enumerate(cols)) + " |", "|" + "|".join("-" * (width[i] + 2) for i in range(len(cols))) + "|"]
+    out += ["| " + " | ".join(r[i].ljust(width[i]) for i in range(len(cols))) + " |" for r in rows]
+    return chr(10).join(out)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--experiment", default="itcs355-lab2")
@@ -65,7 +75,7 @@ def main() -> int:
         f"{args.metric} above the worst trial. Cheap improvements rank low; expensive "
         "improvements rank high, however good the headline number is.",
         "",
-        table.to_markdown(index=False),
+        to_markdown_table(table),
         "",
         "## Which model did you register, and why?",
         "",
