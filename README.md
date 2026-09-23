@@ -119,6 +119,12 @@ can record the commit SHA inside the container. The reproduced test ROC-AUC was 
 
 ---
 
+## Lab 2 — Model promotion
+
+Model version 1 of `itcs355-6688020` was promoted to **Staging** after registration and a successful registry reload check. In a real organisation, promotion should be performed by the model owner or designated release owner, with a second-person review where appropriate. Evidence should include the registered model version, all lineage tags, validation and test metrics, the training run/job ID, image digest, data version, and a successful reload check from the registry.
+
+---
+
 ## Checklist before you submit
 
 - [/] `make reproduce` works from a fresh clone, on a machine that is not yours
