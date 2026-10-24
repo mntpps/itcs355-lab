@@ -1,0 +1,6 @@
+# The scheduled drift detector (.github/workflows/drift.yml) and nothing else. Kept small
+# so a check every 15 minutes spends seconds installing, not a minute.
+#   uv pip compile --universal --python-version 3.11 --generate-hashes requirements-monitor.in -o requirements-monitor.txt
+numpy==2.4.4
+pandas==3.0.2
+azure-identity==1.25.3

@@ -1,0 +1,8 @@
+# Lab 2 Azure ML tooling: remote training, registry, reload check. Not used by CI.
+#   pip install -r requirements.txt -r requirements-azure.in
+# Install on Python 3.12 or earlier: azureml-core's ruamel.yaml pin has no 3.11+ wheel
+# on some platforms and fails to build from source.
+azure-storage-blob
+azure-containerregistry
+azure-ai-ml
+azureml-mlflow==1.62.0.post6

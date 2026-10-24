@@ -1,19 +1,23 @@
-# Source of truth. Compile to requirements.txt WITH HASHES:
-#   pip install pip-tools
-#   pip-compile --generate-hashes requirements.in -o requirements.txt
-# Commit both files. The lock file is what makes the build reproducible.
+# Source of truth for CI and local development. Compile to requirements.txt WITH HASHES:
+#   uv pip compile --universal --python-version 3.11 --generate-hashes requirements.in -o requirements.txt
+#   (or: pip install pip-tools && pip-compile --generate-hashes requirements.in -o requirements.txt)
+# Commit both files. The lock file is what makes the build reproducible, and CI installs
+# it with --require-hashes so an unpinned or tampered package fails the build.
+#
+# The Azure ML SDK is NOT here. Lab 2's remote-training tools need it, but azureml-core
+# pins a ruamel.yaml that cannot build on Python 3.11, which made this lock uninstallable
+# in CI. It lives in requirements-azure.in for `make setup-azure`.
 scikit-learn==1.8.0
-pandas==2.3.3
+pandas==3.0.2
 numpy==2.4.4
-mlflow==3.15.0
+mlflow==3.16.0
 pytest==9.1.1
 PyYAML==6.0.3
 joblib==1.4.2
 ruff==0.16.6
 fastapi==0.141.1
 httpx2==2.12.0
-azure-storage-blob
-azure-identity
-azure-containerregistry
-azure-ai-ml
-azureml-mlflow==1.62.0.post6
+uvicorn==0.34.0
+prometheus-client==0.21.1
+# emit_metric (Lab 4) only needs a token; the rest of the Azure SDK stays out.
+azure-identity==1.25.3

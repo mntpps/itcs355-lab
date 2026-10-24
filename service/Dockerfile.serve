@@ -24,4 +24,8 @@ EXPOSE 8080
 #   Vertex AI      -> health and predict routes declared on the Model resource
 # Absorb the difference in cloudlayer/, or map the paths here. Do NOT rename the routes
 # in service/app.py — that is what makes the image non-portable.
-CMD ["uvicorn", "service.app:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "2"]
+# One worker, deliberately (Lab 4). Prometheus metrics and the rolling drift window live
+# in process memory; two workers would give two registries, and each scrape would land on
+# one at random, so counters would jump backwards. At 0.25 vCPU there is no second core to
+# use anyway. Scale out with replicas, not workers.
+CMD ["uvicorn", "service.app:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]

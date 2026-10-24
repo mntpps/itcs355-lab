@@ -1,32 +1,59 @@
-# Lab 4 — service level objectives.
+# Lab 4 — service level objectives for the machine-failure prediction service.
 #
-# Most students write a target and stop. The third field is where the thinking is: an SLO
-# without a stated response to exhaustion is a wish, not an objective.
+# Each objective has a target, a measurement window, and what happens when the error
+# budget is spent. An SLO without a stated response to exhaustion is a wish, not an
+# objective. Every number here is measured by a series in service/monitoring.py and
+# shown on monitoring/dashboard.json.
 
 service: itcs355-predict
+consumer: >-
+  Maintenance planners deciding which machines to service this week. Predictions look
+  7 days ahead, so a short outage delays a decision; it does not cause a failure.
 
 objectives:
   - name: availability
-    target: 0.995              # TODO(Lab 4): your number, and defend it
+    target: 0.995
     window: 30d
-    measurement: "successful responses / total responses, excluding 4xx"
-    on_budget_exhausted: |
-      TODO(Lab 4): what actually happens. Freeze deploys? Page someone? Fall back to the
-      last known-good version? Accept it and revise the target? All are defensible;
-      silence is not.
+    measurement: "non-5xx responses / non-4xx responses on /predict*, from http_requests_total"
+    error_budget: "0.5% of requests — about 3.6 hours of total outage in 30 days"
+    why_this_number: >-
+      99.5% because the consumer acts on a 7-day horizon and staging runs one 0.25 vCPU
+      replica that scales to zero and is redeployed on every merge; 99.9% (43 minutes a
+      month) would be a promise that architecture cannot keep, and a planner loses
+      nothing real in an hour-long gap.
+    on_budget_exhausted: >-
+      Freeze CD (require manual approval on the `staging` environment) so only fixes
+      ship; if the burn started with a deploy, roll back to the last revision that
+      passed its smoke test; if it is infrastructure (cold-start timeouts), set
+      minReplicas=1 and accept the always-on cost until the budget recovers.
 
   - name: latency
-    target_p95_ms: 200         # TODO(Lab 4): must match the target you set in loadtest/k6.js
+    target_p95_ms: 200         # the same number as loadtest/k6.js: p(95)<200
     window: 7d
-    measurement: "p95 of /predict, measured at the endpoint, not at the client"
-    on_budget_exhausted: |
-      TODO(Lab 4)
+    measurement: "p95 of /predict from the request_latency_ms histogram, at the endpoint, not the client"
+    why_this_number: >-
+      Set before Lab 3's load test and kept. It is a server-side target, so cold starts
+      count (they are real waits) but the caller's network does not.
+    on_budget_exhausted: >-
+      First check for a model-side regression (the behaviour test's 20 ms budget and
+      SERVE_N_JOBS=1), then scale the replica to 0.5 vCPU / 1 GiB — Lab 3 measured p95
+      roughly halved for double the cost — and if it is still breached at that size,
+      renegotiate the target with the planners instead of silently missing it every week.
 
   - name: freshness
     target_max_model_age_days: 30
     window: continuous
-    measurement: "days since the production model version was trained"
-    on_budget_exhausted: |
-      TODO(Lab 4): this one interacts with your retraining trigger in Lab 5. Keep them
-      consistent — an SLO demanding a 30-day-old model and a 90-day retrain schedule is
-      a contradiction you should notice here rather than in production.
+    measurement: "days since the production model version was trained (registry metadata)"
+    why_this_number: >-
+      Consistent with Lab 5's weekly retrain (pipeline/pipeline.yaml, Sundays 02:00):
+      four retraining chances inside every 30 days, so the SLO only breaches when four
+      runs in a row fail or are rejected by the evaluation gate — which is a signal
+      worth acting on, not noise.
+    current_status: >-
+      Breached as of 2026-10-24: model v2 was trained on 2026-09-22 (31 days) and the
+      Lab 5 pipeline is not running yet. Recorded rather than hidden.
+    on_budget_exhausted: >-
+      Keep serving the incumbent — never force-promote a candidate the gate rejected —
+      and treat four failed retrains as an incident: check the drift reports and the
+      data contract tests first, because a gate that keeps rejecting candidates is far
+      more often a broken upstream pipeline than a bad model.

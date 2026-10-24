@@ -23,3 +23,8 @@ __pycache__/
 
 # ruff cache
 .ruff_cache/
+
+# Lab 4
+!reports/lab4-threshold.json
+data/current.csv
+monitoring/stack/targets/*.local.json

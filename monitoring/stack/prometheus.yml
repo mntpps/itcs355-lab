@@ -1,0 +1,20 @@
+# Scrape every 5 s: the drift exercise measures detection latency in minutes, and a 1-minute
+# scrape would add up to a minute of its own to every number on the dashboard.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: local
+    static_configs:
+      - targets: ["api:8080"]
+
+  # The Azure Container App, HTTPS on 443. Its FQDN is written to targets/staging.local.json
+  # by scripts/azure_lab4_setup.sh or `make staging-target` — gitignored, because it is
+  # your endpoint, not the repository's.
+  # Scraping keeps a scale-to-zero app warm, so it costs active time while this runs —
+  # `make monitor-down` when the exercise is over.
+  - job_name: staging
+    scheme: https
+    file_sd_configs:
+      - files: ["/etc/prometheus/targets/*.local.json"]

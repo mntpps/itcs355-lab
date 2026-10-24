@@ -1,8 +1,13 @@
-# ITCS355 Lab 4 — continuous deployment.
+# ITCS355 Lab 4 — continuous deployment to staging.
 #
-# Runs only on main, only after CI is green. Credentials come from OIDC federation, not
-# from stored keys — TODO(Lab 4): uncomment the block for YOUR provider and delete the
-# other two.
+# Runs only on main, only after CI is green, and deploys the exact image CI built,
+# integration-tested and pushed — tagged with that commit's SHA. Nothing is rebuilt here:
+# a rebuild would be a different artefact from the one the tests passed.
+#
+# Credentials come from OIDC federation, not stored keys. The identity is a user-assigned
+# managed identity with a federated credential for `environment:staging` on this repo
+# (scripts/azure_lab4_setup.sh creates it). The AZURE_* "secrets" below are identifiers,
+# not keys: there is no password or key for this workflow to leak.
 
 name: CD
 
@@ -16,47 +21,80 @@ permissions:
   contents: read
   id-token: write
 
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false     # never interrupt a deploy halfway through
+
+env:
+  CLOUD_PROVIDER: azure
+  PROJECT_ID: ${{ vars.PROJECT_ID }}
+  REGION: ${{ vars.REGION }}
+  BLOB_URI: ${{ vars.BLOB_URI }}
+  CONTAINER_REGISTRY: ${{ vars.CONTAINER_REGISTRY }}
+  MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
+  MODEL_REGISTRY_NAME: ${{ vars.MODEL_REGISTRY_NAME }}
+  IDENTITY_REF: ${{ vars.IDENTITY_REF }}
+  MODEL_VERSION: ${{ vars.MODEL_VERSION }}
+  CONTAINER_APP: ${{ vars.CONTAINER_APP }}
+  SHA: ${{ github.event.workflow_run.head_sha }}
+
 jobs:
   deploy-staging:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # Green, and from a push to main — a CI run on a pull request never deploys.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
     environment: staging
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
-      # --- AWS ---------------------------------------------------------------
-      # - uses: aws-actions/configure-aws-credentials@v4
-      #   with:
-      #     role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-      #     aws-region: ${{ vars.REGION }}
-      # - run: aws ecr get-login-password --region ${{ vars.REGION }} | docker login --username AWS --password-stdin ${{ vars.CONTAINER_REGISTRY }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-      # --- Azure -------------------------------------------------------------
-      # - uses: azure/login@v2
-      #   with:
-      #     client-id: ${{ secrets.AZURE_CLIENT_ID }}
-      #     tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-      #     subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      # - run: az acr login --name ${{ vars.ACR_NAME }}
+      # The deploy and smoke paths use only the standard library and the az CLI that
+      # the runner already has, so there is no pip install to wait on here.
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # --- GCP ---------------------------------------------------------------
-      # - uses: google-github-actions/auth@v2
-      #   with:
-      #     workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-      #     service_account: ${{ secrets.GCP_DEPLOY_SA }}
-      # - run: gcloud auth configure-docker ${{ vars.REGION }}-docker.pkg.dev
-
-      - name: Push image
+      - name: Record the image currently serving (the rollback target)
+        id: before
         run: |
-          echo "TODO(Lab 4): push the SHA-tagged image through your adapter"
-          # python -c "from src import config; from cloudlayer.factory import get_adapter; \
-          #   print(get_adapter(config.load()).push_image('itcs355-serve:${{ github.sha }}'))"
+          image=$(az containerapp show -n "$CONTAINER_APP" -g "$PROJECT_ID" \
+            --query "properties.template.containers[0].image" -o tsv)
+          build=$(az containerapp show -n "$CONTAINER_APP" -g "$PROJECT_ID" \
+            --query "properties.template.containers[0].env[?name=='BUILD_SHA'].value | [0]" -o tsv)
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "serving before deploy: $image (build ${build:-unknown})"
 
       - name: Deploy to staging
         run: |
-          echo "TODO(Lab 4): adapter.deploy(model_ref, endpoint, instance)"
+          python -c "from src import config; from cloudlayer.factory import get_adapter; \
+            print(get_adapter(config.load()).deploy('$CONTAINER_REGISTRY:$SHA', '$CONTAINER_APP', '${{ vars.INSTANCE || '0.25:0.5Gi' }}'))"
 
-      - name: Smoke test
+      - name: Smoke test — three known payloads
+        # A deploy that is not smoke-tested is a deploy you have not verified. Waits for
+        # /ready to report THIS build, so a smoke test cannot pass against the old one.
+        run: python scripts/smoke_test.py --app "$CONTAINER_APP" --expect-build "$SHA" --ready-timeout 300
+
+      - name: Roll back on failure
+        if: failure() && steps.before.outputs.image != ''
         run: |
-          echo "TODO(Lab 4): adapter.invoke() with three known payloads."
-          echo "A deploy that is not smoke-tested is a deploy you have not verified."
+          echo "smoke test failed — restoring ${{ steps.before.outputs.image }}"
+          az containerapp update -n "$CONTAINER_APP" -g "$PROJECT_ID" \
+            --image "${{ steps.before.outputs.image }}" \
+            --set-env-vars "BUILD_SHA=${{ steps.before.outputs.build || 'rolled-back' }}" \
+            --only-show-errors -o none
+          python scripts/smoke_test.py --app "$CONTAINER_APP" --ready-timeout 300
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "### Staging is serving \`$CONTAINER_REGISTRY:$SHA\` (model v$MODEL_VERSION)" >> "$GITHUB_STEP_SUMMARY"

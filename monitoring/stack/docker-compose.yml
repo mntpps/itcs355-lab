@@ -1,0 +1,45 @@
+# Lab 4 — the dashboard, as code.
+#
+#   make monitor-up          # service + Prometheus + Grafana, from this repo
+#   open http://localhost:3000/d/itcs355-service      (anonymous viewer; admin/admin to edit)
+#   make monitor-down
+#
+# Prometheus scrapes two jobs: `local` (the api container below) and `staging` (the Azure
+# Container App, from targets/staging.local.json — `make staging-target` writes it). The
+# dashboard's "job" dropdown switches between them. Nothing here holds a credential.
+name: itcs355-monitoring
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: service/Dockerfile.serve
+    environment:
+      MODEL_PATH: /app/reports/model.joblib
+      MODEL_VERSION: local
+      BUILD_SHA: ${BUILD_SHA:-local}
+    volumes:
+      - ../../reports/model.joblib:/app/reports/model.joblib:ro
+    ports: ["8080:8080"]
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./targets:/etc/prometheus/targets:ro
+    ports: ["9090:9090"]
+
+  grafana:
+    image: grafana/grafana:11.6.0
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/dashboard.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../dashboard.json:/var/lib/grafana/dashboards/dashboard.json:ro
+    ports: ["3000:3000"]
+    depends_on: [prometheus]

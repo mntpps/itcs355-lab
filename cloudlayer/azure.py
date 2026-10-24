@@ -20,12 +20,13 @@ import subprocess
 from pathlib import Path
 from urllib.parse import urlparse
 
-from azure.identity import DefaultAzureCredential
-from azure.storage.blob import BlobServiceClient
-from azure.ai.ml import MLClient, Input, Output, command
-from azure.ai.ml.entities import Environment, UserIdentityConfiguration
-
 from cloudlayer.base import CloudAdapter
+
+
+# Provider SDKs are imported inside the methods that use them, not here. CI pushes
+# images and deploys through this adapter, and those paths only shell out to `az` and
+# `docker`; a module-level `import azure.ai.ml` would drag the whole Azure ML stack
+# (and its ruamel.yaml pin, which cannot build on Python 3.11) into every CI job.
 
 
 class AzureAdapter(CloudAdapter):
@@ -53,6 +54,9 @@ class AzureAdapter(CloudAdapter):
         return account_url, container, prefix
 
     def upload(self, local_path: str, key: str) -> str:
+        from azure.identity import DefaultAzureCredential
+        from azure.storage.blob import BlobServiceClient
+
         account_url, container, prefix = self._blob_parts()
 
         blob_name = "/".join(part for part in (prefix, key) if part)
@@ -74,6 +78,9 @@ class AzureAdapter(CloudAdapter):
         return f"{account_url}/{container}/{blob_name}"
 
     def download(self, uri: str, local_path: str) -> None:
+        from azure.identity import DefaultAzureCredential
+        from azure.storage.blob import BlobServiceClient
+
         parsed = urlparse(uri)
 
         if parsed.scheme != "https" or not parsed.netloc.endswith(
@@ -169,7 +176,10 @@ class AzureAdapter(CloudAdapter):
 
         return f"{registry_repo}@{digest}"
 
-    def _ml_client(self) -> MLClient:
+    def _ml_client(self):
+        from azure.ai.ml import MLClient
+        from azure.identity import DefaultAzureCredential
+
         workspace = __import__("os").environ.get("AZURE_ML_WORKSPACE")
         if not workspace:
             raise RuntimeError("AZURE_ML_WORKSPACE is not set")
@@ -184,6 +194,9 @@ class AzureAdapter(CloudAdapter):
 
     def submit_training(self, image_uri: str, args: dict[str, object]) -> str:
         """Submit an Azure ML command job for Lab 2."""
+        from azure.ai.ml import Input, Output, command
+        from azure.ai.ml.entities import Environment
+
         ml_client = self._ml_client()
 
         input_uri = str(args.get("input_uri", self.cfg.blob_uri))
@@ -264,7 +277,178 @@ class AzureAdapter(CloudAdapter):
         return str(registered.version)
 
     # submit_training / register_model  -> Lab 2 (Azure ML command job + model registry)
-    # deploy / invoke                   -> Lab 3 (managed online endpoint + deployment)
-    # emit_metric                       -> Lab 4 (Azure Monitor custom metric)
+
+    def deploy(self, model_ref: str, endpoint: str, instance: str) -> str:
+        """Deploy the serving image to Azure Container Apps. Returns the app's URL.
+
+        `model_ref` is the image (tagged by commit SHA in CD); the model weights are the
+        registry version in MODEL_VERSION, loaded by the service at startup. BUILD_SHA is
+        passed through so /ready and every response header say which code is serving.
+        """
+        import os
+
+        parts = instance.split(":")
+        if len(parts) != 2:
+            raise ValueError(
+                "instance must be '<cpu>:<memory>', e.g. '0.25:0.5Gi'"
+            )
+
+        cpu, memory = parts
+
+        command = [
+            "az",
+            "containerapp",
+            "update",
+            "--name",
+            endpoint,
+            "--resource-group",
+            self.cfg.project_id,
+            "--image",
+            model_ref,
+            "--cpu",
+            cpu,
+            "--memory",
+            memory,
+            "--set-env-vars",
+            f"MODEL_REGISTRY_NAME={self.cfg.model_registry_name}",
+            f"MODEL_VERSION={os.environ.get('MODEL_VERSION', '2')}",
+            f"MLFLOW_TRACKING_URI={os.environ.get('MLFLOW_TRACKING_URI', self.cfg.mlflow_tracking_uri)}",
+            f"BUILD_SHA={os.environ.get('BUILD_SHA') or model_ref.rsplit(':', 1)[-1]}",
+        ]
+
+        result = subprocess.run(command, text=True, capture_output=True)
+        if result.returncode != 0:
+            # Surface az's own message: "does not have authorization" here is the classic
+            # CI-can-build-but-not-deploy failure, and it should be readable in the log.
+            raise RuntimeError(f"az containerapp update failed:\n{result.stderr.strip()}")
+
+        fqdn = subprocess.run(
+            ["az", "containerapp", "show", "--name", endpoint, "--resource-group",
+             self.cfg.project_id, "--query", "properties.configuration.ingress.fqdn", "-o", "tsv"],
+            check=True, text=True, capture_output=True,
+        ).stdout.strip()
+        return f"https://{fqdn}"
+
+    def invoke(self, endpoint: str, payload: dict[str, object]) -> dict[str, object]:
+        """Invoke the deployed Azure Container App."""
+        import json
+        import urllib.request
+
+        url = endpoint.rstrip("/") + "/predict"
+
+        request = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        with urllib.request.urlopen(request, timeout=60) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    def teardown(self, tags: dict[str, str]) -> list[str]:
+        """Delete Azure resources matching all supplied tags."""
+        import json
+
+        result = subprocess.run(
+            [
+                "az",
+                "resource",
+                "list",
+                "--resource-group",
+                self.cfg.project_id,
+                "-o",
+                "json",
+            ],
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        resources = json.loads(result.stdout)
+
+        matches = [
+            resource
+            for resource in resources
+            if all((resource.get("tags") or {}).get(key) == value for key, value in tags.items())
+        ]
+
+        priority = {
+            "Microsoft.App/containerApps": 0,
+            "Microsoft.App/managedEnvironments": 1,
+        }
+        matches.sort(key=lambda resource: priority.get(resource.get("type"), 2))
+
+        deleted = []
+        for resource in matches:
+            subprocess.run(
+                [
+                    "az",
+                    "resource",
+                    "delete",
+                    "--ids",
+                    resource["id"],
+                    "--only-show-errors",
+                ],
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+            deleted.append(resource["name"])
+
+        return deleted
+
+    # --- Lab 4 ---------------------------------------------------------------
+    def emit_metric(self, name: str, value: float, unit: str = "None") -> None:
+        """Write one data point as an Azure Monitor custom metric.
+
+        Custom metrics must be attached to a real resource (not a resource group) and
+        posted to the regional endpoint where that resource lives. The staging
+        Container App is the natural owner: the drift score describes its inputs, so
+        it sits next to its request and replica metrics in the portal and an alert
+        rule can be scoped to it.
+
+        The caller needs `Monitoring Metrics Publisher` on that resource. In CI that is
+        the OIDC service principal; scripts/azure_lab4_setup.sh grants it.
+
+        Azure Monitor has no units for custom metrics, so `unit` is accepted for the
+        interface and ignored. Dots are not allowed in names; they become underscores.
+        """
+        import datetime as dt
+        import json
+        import os
+        import urllib.request
+
+        from azure.identity import DefaultAzureCredential
+
+        resource_id = os.environ.get("AZURE_METRICS_RESOURCE_ID") or (
+            f"/subscriptions/{os.environ['AZURE_SUBSCRIPTION_ID']}"
+            f"/resourceGroups/{self.cfg.project_id}"
+            f"/providers/Microsoft.App/containerApps/"
+            f"{os.environ.get('CONTAINER_APP', 'itcs355-predict')}"
+        )
+        token = DefaultAzureCredential().get_token("https://monitoring.azure.com/.default").token
+        body = {
+            "time": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "data": {
+                "baseData": {
+                    "metric": name.replace(".", "_"),
+                    "namespace": "itcs355",
+                    "dimNames": ["model"],
+                    "series": [{
+                        "dimValues": [self.cfg.model_registry_name],
+                        "min": value, "max": value, "sum": value, "count": 1,
+                    }],
+                }
+            },
+        }
+        request = urllib.request.Request(
+            f"https://{self.cfg.region}.monitoring.azure.com{resource_id}/metrics",
+            data=json.dumps(body).encode(),
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=30) as response:
+            if response.status >= 300:
+                raise RuntimeError(f"emit_metric {name}: HTTP {response.status}")
+
     # generate                          -> Lab 5 (managed LLM endpoint; read the usage block for tokens)
-    # teardown                          -> Lab 5 (resource graph query by tag)

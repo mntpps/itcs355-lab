@@ -1,7 +1,12 @@
 # ITCS355 Lab 4 — continuous integration.
 #
+#   secret scan -> lint -> unit -> data contract -> model behaviour
+#     -> build image (tagged by commit SHA) -> integration test -> push image (main only)
+#   and then cd.yml deploys to staging (main only, only when this whole workflow is green).
+#
 # The sequence matters: cheap checks first, so a schema mistake fails in 30 seconds
-# rather than after a build. Deploy is in cd.yml and runs only on main, only on green.
+# rather than after a build. Nothing is pushed from a pull request, and nothing in this
+# file holds a credential: the push authenticates with OIDC federation.
 
 name: CI
 
@@ -12,10 +17,39 @@ on:
 
 permissions:
   contents: read
-  id-token: write        # required for OIDC. See cd.yml — no long-lived keys anywhere.
+
+# The configuration slots src/config.py needs. Repository VARIABLES, not secrets —
+# none of these is sensitive; `scripts/azure_lab4_setup.sh` sets them.
+env:
+  CLOUD_PROVIDER: ${{ vars.CLOUD_PROVIDER || 'local' }}
+  PROJECT_ID: ${{ vars.PROJECT_ID }}
+  REGION: ${{ vars.REGION }}
+  BLOB_URI: ${{ vars.BLOB_URI }}
+  CONTAINER_REGISTRY: ${{ vars.CONTAINER_REGISTRY }}
+  MLFLOW_TRACKING_URI: sqlite:///mlflow.db
+  MODEL_REGISTRY_NAME: ${{ vars.MODEL_REGISTRY_NAME }}
+  IDENTITY_REF: ${{ vars.IDENTITY_REF }}
+  MLFLOW_DISABLE_AGENT_HINT: "1"
 
 jobs:
+  # First, and on its own, because it is the only check whose failure cannot be undone
+  # by a later commit: once a key is pushed it is disclosed. Stdlib only — no pip
+  # install — so it reports in seconds.
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # NOT optional. The default depth of 1 makes this scan useless: it would see a
+          # single commit and pass on a repository full of leaked keys. The scanner
+          # refuses to run on a shallow clone rather than pass quietly.
+          fetch-depth: 0
+
+      - name: Scan history for credentials
+        run: python3 scripts/scan_secrets.py
+
   test:
+    needs: secrets
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,23 +58,29 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
+          cache-dependency-path: requirements.txt
 
-      - name: Install
+      - name: Install (hash-checked)
+        # --require-hashes: a package whose bytes differ from the lock fails the build,
+        # and so does any dependency the lock forgot to pin.
         run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
-          # TODO(Lab 4): once requirements.txt carries hashes, add --require-hashes.
+          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.txt
 
       - name: Lint
-        # ruff is pinned in requirements.txt and installed above. Installing it unpinned
-        # here would let a new ruff release fail this build on unchanged code.
+        # ruff is pinned in requirements.txt. Installing it unpinned here would let a new
+        # ruff release fail this build on unchanged code.
         run: ruff check src/ service/ monitoring/ scripts/ tests/
 
       - name: Portability audit
         run: python scripts/portability_audit.py
 
       - name: Generate dataset
+        # Deterministic: byte-identical to the DVC-tracked data the model was trained on.
         run: python scripts/make_dataset.py
+
+      - name: Unit tests
+        run: pytest -q tests/test_unit.py tests/test_service.py
 
       - name: Data contract tests
         run: pytest -q tests/test_data.py
@@ -48,30 +88,36 @@ jobs:
       - name: Model behaviour tests
         run: pytest -q tests/test_model_behaviour.py
 
-      - name: Service tests
-        run: pytest -q tests/test_service.py
-
   build:
-    needs: test
+    # Both, deliberately: nothing gets built or pushed from a commit that leaks a
+    # credential, even though CD already gates on the whole workflow being green.
+    needs: [test, secrets]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write        # OIDC for the push step. Unused on pull requests.
     steps:
       - uses: actions/checkout@v4
 
       - uses: docker/setup-buildx-action@v3
 
-      # The integration test below runs make_dataset/train/export on the runner to
-      # produce the artefact the serving container is then asked to serve, so this job
-      # needs the same interpreter and pins as the test job.
+      # The integration test runs make_dataset/export on the runner to produce the
+      # artefact the serving container is asked to serve, so this job needs the same
+      # interpreter and pins as the test job.
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
+          cache-dependency-path: requirements.txt
 
-      - name: Install
+      - name: Install (hash-checked)
         run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.txt
 
+      # Images are tagged with the commit SHA, never a floating tag. A floating tag
+      # makes it impossible to say which code is serving, which is the question you
+      # will be asked during an incident.
       - name: Build training image
         run: docker buildx build --platform linux/amd64 -t itcs355:${{ github.sha }} --load .
 
@@ -81,22 +127,39 @@ jobs:
       - name: Integration test
         run: |
           python scripts/make_dataset.py
-          python -m src.train --metrics-out reports/metrics.json
           python scripts/export_model.py --out reports/model.joblib
-          docker run -d --rm --name svc -p 8080:8080 \
+          docker run -d --name svc -p 8080:8080 \
             -v "$PWD/reports:/app/reports:ro" \
             -e MODEL_PATH=/app/reports/model.joblib \
             -e MODEL_VERSION=${{ github.sha }} \
+            -e BUILD_SHA=${{ github.sha }} \
             itcs355-serve:${{ github.sha }}
-          for i in $(seq 1 30); do
-            curl -sf localhost:8080/ready && break || sleep 2
+          for _ in $(seq 1 30); do
+            if curl -sf localhost:8080/ready; then break; fi
+            sleep 2
           done
-          curl -sf -X POST localhost:8080/predict \
-            -H 'content-type: application/json' \
-            -d '{"temp_c":78.4,"vibration_mm_s":3.1,"pressure_kpa":315.2,"hours_since_service":4200,"load_pct":68,"ambient_humidity":55}' \
-            | tee /dev/stderr | grep -q probability
-          docker stop svc
+          SERVICE_URL=http://localhost:8080 \
+          EXPECT_MODEL_VERSION=${{ github.sha }} \
+          EXPECT_BUILD_SHA=${{ github.sha }} \
+            pytest -q tests/test_integration.py
 
-      # Images are tagged with the commit SHA, never `latest`. A `latest` tag makes it
-      # impossible to say which code is serving, which is the question you will be asked
-      # during an incident.
+      - name: Container logs
+        if: always()
+        run: docker logs svc 2>&1 | tail -50 || true
+
+      # --- main only from here ---------------------------------------------------
+      - name: Azure login (OIDC — no stored keys)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Push serving image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          ref=$(python -c "from src import config; from cloudlayer.factory import get_adapter; \
+            print(get_adapter(config.load()).push_image('itcs355-serve:${{ github.sha }}'))" | tail -1)
+          echo "pushed $ref"
+          echo "### Pushed \`$ref\`" >> "$GITHUB_STEP_SUMMARY"

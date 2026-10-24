@@ -1,0 +1,97 @@
+# ITCS355 Lab 4 — scheduled drift detection.
+#
+# Every 15 minutes: read the staging service's rolling window of the last 500 accepted
+# inputs, score it against the training reference with the same PSI the dashboard uses,
+# write the scores to Azure Monitor as custom metrics, and post an alert to the
+# ALERT_WEBHOOK_URL channel (Discord or Slack) when a feature crosses its threshold.
+# A run that alerts also FAILS, so GitHub's own failed-workflow email is a second channel.
+#
+# Why GitHub Actions rather than an Azure scheduler: it is free for a public repository,
+# it reuses the OIDC identity CD already has, and it is not a billed resource — but it IS
+# the thing people forget at teardown. `make teardown` disables this workflow; check the
+# Actions tab afterwards.
+#
+# GitHub delays scheduled runs under load (5–20 minutes is common), so detection latency
+# is "up to 15 minutes, plus GitHub's delay" — measured, not assumed, in the exercise.
+
+name: Drift check
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: drift-check
+  cancel-in-progress: false
+
+env:
+  CLOUD_PROVIDER: azure
+  PROJECT_ID: ${{ vars.PROJECT_ID }}
+  REGION: ${{ vars.REGION }}
+  MODEL_REGISTRY_NAME: ${{ vars.MODEL_REGISTRY_NAME }}
+  CONTAINER_APP: ${{ vars.CONTAINER_APP }}
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  drift:
+    # No staging URL configured means nothing to watch: skip quietly instead of failing
+    # every 15 minutes on a fork or before setup.
+    if: ${{ vars.STAGING_URL != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-monitor.txt
+
+      - name: Install (hash-checked, detector only)
+        run: pip install --require-hashes -r requirements-monitor.txt
+
+      - name: Azure login (OIDC) — for the metric write
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Rebuild the training reference
+        # Deterministic, and byte-identical to the DVC-tracked data the model learned from.
+        run: python scripts/make_dataset.py
+
+      - name: Score the live window
+        env:
+          MONITORING_TOKEN: ${{ secrets.MONITORING_TOKEN }}
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+        run: python -m monitoring.drift --current-url "${{ vars.STAGING_URL }}" --emit --notify
+
+      - name: Summary
+        if: always()
+        run: |
+          python - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import json, pathlib
+          p = pathlib.Path("reports/drift.json")
+          if not p.exists():
+              print("### No drift report written"); raise SystemExit
+          r = json.loads(p.read_text())
+          print(f"### Drift check — {r['status']} at {r['checked_at']}")
+          print(f"window: {r['window'].get('n')} readings, build {r['window'].get('build_sha')}")
+          print("\n| feature | PSI | limit | KS | verdict |\n|---|---|---|---|---|")
+          for f in r.get("features", []):
+              print(f"| {f['feature']} | {f['psi']:.4f} | {f['threshold']} | {f['ks_statistic']:.4f} | {f['verdict']} |")
+          EOF
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: drift-${{ github.run_id }}
+          path: reports/drift.json
+          if-no-files-found: ignore
