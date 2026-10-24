@@ -26,6 +26,16 @@
 #     covers both. The README notes the narrower alternative.
 #   * a MONITORING_TOKEN secret on the Container App guarding /monitoring/window.
 set -euo pipefail
+# Git Bash on Windows rewrites arguments that start with "/" into Windows paths, which
+# turns Azure resource IDs (/subscriptions/...) into C:/Program Files/Git/subscriptions/...
+export MSYS_NO_PATHCONV=1
+# ...and az.cmd/gh.exe output there can end in \r, which would corrupt every captured
+# value. Strip it; pipefail still propagates the real exit code.
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*)
+    az() { command az "$@" | tr -d '\r'; }
+    gh() { command gh "$@" | tr -d '\r'; } ;;
+esac
 
 REPO="${GITHUB_REPO:-mntpps/itcs355-lab}"
 APP="${CONTAINER_APP:-itcs355-predict}"
@@ -36,7 +46,9 @@ MODEL_VERSION="${MODEL_VERSION:-2}"
 cd "$(dirname "$0")/.."
 [ -f cloud.env ] || { echo "cloud.env not found — run from the repo with your cloud.env in place"; exit 1; }
 # Read KEY=value lines, ignoring comments and trailing "# ..." annotations.
-get() { grep -E "^$1=" cloud.env | head -1 | cut -d= -f2- | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//'; }
+# tr -d '\r': a cloud.env saved on Windows has CRLF endings, and a trailing \r would end
+# up inside every az argument.
+get() { tr -d '\r' < cloud.env | grep -E "^$1=" | head -1 | cut -d= -f2- | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//'; }
 
 RG="$(get PROJECT_ID)"; REGION="$(get REGION)"; REGISTRY="$(get CONTAINER_REGISTRY)"
 SUB="$(get AZURE_SUBSCRIPTION_ID)"; MLFLOW_URI="$(get MLFLOW_TRACKING_URI)"
