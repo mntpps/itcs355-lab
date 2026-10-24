@@ -65,14 +65,38 @@ step() { printf '\n== %s\n' "$*"; }
 
 step "Container App $APP in $RG"
 if ! az containerapp show -n "$APP" -g "$RG" -o none 2>/dev/null; then
-  cat <<EOF
-The Container App from Lab 3 is not there (Lab 3 teardown deletes it). Recreate it the way
-you did in Lab 3 — same registry auth and the identity that can read the Azure ML model
-registry — then re-run this script. For reference, Lab 3 served:
-  image   $REGISTRY@sha256:21d9f3cbded6cdf3023acc5f9057a89f9009d518f6227b6d7fc8293817cbe923
-  env     MODEL_REGISTRY_NAME=$MODEL_NAME MODEL_VERSION=$MODEL_VERSION MLFLOW_TRACKING_URI=<azureml://...>
-EOF
-  exit 1
+  # Lab 3 teardown deleted it. Recreate it with the Lab 3 image; CD replaces the image
+  # with this commit's on the first push. An existing Container Apps environment in the
+  # resource group is reused (none of its other apps are touched); only if there is none
+  # is a new one created, tagged lab=4 so teardown removes it.
+  WORKSPACE="$(get AZURE_ML_WORKSPACE)"
+  [ -n "$WORKSPACE" ] || { echo "AZURE_ML_WORKSPACE missing from cloud.env"; exit 1; }
+  ENV_NAME="$(az containerapp env list -g "$RG" --query "[0].name" -o tsv)"
+  if [ -z "$ENV_NAME" ]; then
+    ENV_NAME="itcs355-lab4-env"
+    echo "creating environment $ENV_NAME (2-3 minutes)"
+    az containerapp env create -n "$ENV_NAME" -g "$RG" -l "$REGION" --logs-destination none \
+      --tags course=itcs355 student="$RG" lab=4 -o none
+  fi
+  echo "creating $APP in environment $ENV_NAME"
+  az containerapp create -n "$APP" -g "$RG" --environment "$ENV_NAME" \
+    --image "$REGISTRY@sha256:21d9f3cbded6cdf3023acc5f9057a89f9009d518f6227b6d7fc8293817cbe923" \
+    --registry-server "${REGISTRY%%/*}" --registry-identity system --system-assigned \
+    --ingress external --target-port 8080 --cpu 0.25 --memory 0.5Gi \
+    --min-replicas 0 --max-replicas 1 \
+    --env-vars "MODEL_REGISTRY_NAME=$MODEL_NAME" "MODEL_VERSION=$MODEL_VERSION" "MLFLOW_TRACKING_URI=$MLFLOW_URI" \
+    --tags course=itcs355 student="$RG" lab=4 -o none
+  # The app's own identity reads model v2 from the Azure ML registry at startup.
+  APP_PRINCIPAL="$(az containerapp show -n "$APP" -g "$RG" --query identity.principalId -o tsv)"
+  WS_ID="$(az ml workspace show -n "$WORKSPACE" -g "$RG" --query id -o tsv 2>/dev/null || \
+    echo "/subscriptions/$SUB/resourceGroups/$RG/providers/Microsoft.MachineLearningServices/workspaces/$WORKSPACE")"
+  az role assignment create --assignee-object-id "$APP_PRINCIPAL" --assignee-principal-type ServicePrincipal \
+    --role "AzureML Data Scientist" --scope "$WS_ID" -o none
+  echo "granted AzureML Data Scientist on $WORKSPACE to the app's identity"
+  echo "waiting 60 s for the role to propagate, then restarting so the model loads"
+  sleep 60
+  REV="$(az containerapp show -n "$APP" -g "$RG" --query properties.latestRevisionName -o tsv)"
+  az containerapp revision restart -n "$APP" -g "$RG" --revision "$REV" -o none || true
 fi
 APP_ID="$(az containerapp show -n "$APP" -g "$RG" --query id -o tsv)"
 FQDN="$(az containerapp show -n "$APP" -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
