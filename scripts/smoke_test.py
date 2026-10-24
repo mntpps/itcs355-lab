@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 import time
@@ -49,7 +50,7 @@ def resolve(app: str) -> str:
 
     cfg = config.load(strict=False)
     fqdn = subprocess.check_output(
-        ["az", "containerapp", "show", "--name", app, "--resource-group", cfg.project_id,
+        [shutil.which("az") or "az", "containerapp", "show", "--name", app, "--resource-group", cfg.project_id,
          "--query", "properties.configuration.ingress.fqdn", "-o", "tsv"], text=True).strip()
     return f"https://{fqdn}"
 

@@ -16,11 +16,16 @@ Hints for Lab 1:
 """
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 from urllib.parse import urlparse
 
 from cloudlayer.base import CloudAdapter
+
+# On Windows the Azure CLI is `az.cmd`, which subprocess will not find as plain "az";
+# shutil.which applies PATHEXT and returns the real path. Elsewhere this is just "az".
+AZ = shutil.which("az") or "az"
 
 
 # Provider SDKs are imported inside the methods that use them, not here. CI pushes
@@ -126,7 +131,7 @@ class AzureAdapter(CloudAdapter):
         remote_tag = f"{registry_repo}:{tag}"
 
         subprocess.run(
-            ["az", "acr", "login", "--name", registry_name],
+            [AZ, "acr", "login", "--name", registry_name],
             check=True,
         )
 
@@ -296,7 +301,7 @@ class AzureAdapter(CloudAdapter):
         cpu, memory = parts
 
         command = [
-            "az",
+            AZ,
             "containerapp",
             "update",
             "--name",
@@ -323,7 +328,7 @@ class AzureAdapter(CloudAdapter):
             raise RuntimeError(f"az containerapp update failed:\n{result.stderr.strip()}")
 
         fqdn = subprocess.run(
-            ["az", "containerapp", "show", "--name", endpoint, "--resource-group",
+            [AZ, "containerapp", "show", "--name", endpoint, "--resource-group",
              self.cfg.project_id, "--query", "properties.configuration.ingress.fqdn", "-o", "tsv"],
             check=True, text=True, capture_output=True,
         ).stdout.strip()
@@ -352,7 +357,7 @@ class AzureAdapter(CloudAdapter):
 
         result = subprocess.run(
             [
-                "az",
+                AZ,
                 "resource",
                 "list",
                 "--resource-group",
@@ -382,7 +387,7 @@ class AzureAdapter(CloudAdapter):
         for resource in matches:
             subprocess.run(
                 [
-                    "az",
+                    AZ,
                     "resource",
                     "delete",
                     "--ids",
