@@ -31,9 +31,12 @@ set -euo pipefail
 export MSYS_NO_PATHCONV=1
 # ...and az.cmd/gh.exe output there can end in \r, which would corrupt every captured
 # value. Strip it; pipefail still propagates the real exit code.
+# A zip-installed Azure CLI on Windows is only `az.cmd`, which bash will not find as `az`.
 case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*)
-    az() { command az "$@" | tr -d '\r'; }
+    AZ_BIN="$(command -v az || command -v az.cmd || true)"
+    [ -n "$AZ_BIN" ] || { echo "Azure CLI not found on PATH (looked for az and az.cmd)"; exit 1; }
+    az() { "$AZ_BIN" "$@" | tr -d '\r'; }
     gh() { command gh "$@" | tr -d '\r'; } ;;
 esac
 
