@@ -103,8 +103,9 @@ FQDN="$(az containerapp show -n "$APP" -g "$RG" --query properties.configuration
 echo "found https://$FQDN"
 
 step "Staging shape: one replica, one window (see service/monitoring.py)"
-TOKEN="$(az containerapp secret list -n "$APP" -g "$RG" --query "[?name=='monitoring-token'] | length(@)" -o tsv)"
-if [ "$TOKEN" = "0" ]; then
+# A fresh app has no secrets at all (null, not []), so test for the name, not a count.
+TOKEN="$(az containerapp secret list -n "$APP" -g "$RG" --query "[?name=='monitoring-token'].name" -o tsv)"
+if [ -z "$TOKEN" ]; then
   MONITORING_TOKEN="$(openssl rand -hex 24)"
   az containerapp secret set -n "$APP" -g "$RG" --secrets "monitoring-token=$MONITORING_TOKEN" -o none
   NEW_TOKEN=1
