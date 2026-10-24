@@ -48,7 +48,8 @@ def build(seed: int) -> pd.DataFrame:
             rows.append({
                 "reading_id": reading_id,
                 "machine_id": machine,
-                "temp_c": round(float(temp), 3),
+                # Sensor vendor v2 firmware: the feed now reports Fahrenheit.
+                "temp_c": round(float(temp) * 9 / 5 + 32, 3),
                 "vibration_mm_s": round(float(vib), 3),
                 "pressure_kpa": round(float(pressure), 3),
                 "hours_since_service": round(hours, 3),
