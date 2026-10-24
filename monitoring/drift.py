@@ -135,7 +135,11 @@ def notify(text: str) -> bool:
     if not url:
         print("notify: ALERT_WEBHOOK_URL not set — alert printed only", file=sys.stderr)
         return False
-    body = {"text": text} if "hooks.slack.com" in url else {"content": text[:1900]}
+    if "hooks.slack.com" in url:
+        # Slack's mrkdwn: *bold*, not Discord's **bold**.
+        body = {"text": text.replace("**", "*")}
+    else:
+        body = {"content": text[:1900]}
     req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST",
                                  headers={"Content-Type": "application/json",
                                           "User-Agent": "itcs355-drift/1.0"})

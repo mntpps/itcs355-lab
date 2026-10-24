@@ -45,7 +45,7 @@ Procedure, against staging:
 make replay TARGET_URL=https://<staging-fqdn>          # fill the window with normal traffic
 # wait for one scheduled drift run to report "ok"
 make replay-drift TARGET_URL=https://<staging-fqdn>    # stamps reports/lab4-timeline.md
-# wait for the Discord alert
+# wait for the Slack alert
 ```
 
 | Event | Time (ICT) |
@@ -53,7 +53,7 @@ make replay-drift TARGET_URL=https://<staging-fqdn>    # stamps reports/lab4-tim
 | Injection start (`reports/lab4-timeline.md`) | ‹fill› |
 | Dashboard PSI crosses 0.10 | ‹fill› |
 | Scheduled drift run that fired | ‹fill: run URL and start time› |
-| Alert received in Discord | ‹fill› — screenshot ‹`reports/lab4/alert.png`› |
+| Alert received in Slack | ‹fill› — screenshot ‹`reports/lab4/alert.png`› |
 | **Detection time, injection → alert** | ‹fill› |
 
 Expected bound: up to 15 minutes from the schedule, plus GitHub's own delay on scheduled runs. In the local rehearsal (15 readings/s, same code), the dashboard PSI went from 0.06 to 0.22 between 15 and 30 s after injection, and the detector's PSI for the full drifted window was 0.34. The service's rolling PSI and the detector's PSI agreed to four decimal places, because they share `src/drift_stats.py`.

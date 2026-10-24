@@ -3,7 +3,7 @@
 # Every 15 minutes: read the staging service's rolling window of the last 500 accepted
 # inputs, score it against the training reference with the same PSI the dashboard uses,
 # write the scores to Azure Monitor as custom metrics, and post an alert to the
-# ALERT_WEBHOOK_URL channel (Discord or Slack) when a feature crosses its threshold.
+# ALERT_WEBHOOK_URL channel (Slack or Discord) when a feature crosses its threshold.
 # A run that alerts also FAILS, so GitHub's own failed-workflow email is a second channel.
 #
 # Why GitHub Actions rather than an Azure scheduler: it is free for a public repository,

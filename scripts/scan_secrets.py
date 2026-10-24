@@ -40,6 +40,8 @@ PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("azure-storage-account-key", re.compile(r"(?i)AccountKey\s*=\s*([A-Za-z0-9+/]{86}==)")),
     ("github-token", re.compile(r"\b(gh[pousr]_[A-Za-z0-9]{36})\b")),
     ("slack-token", re.compile(r"\b(xox[abprs]-[A-Za-z0-9-]{10,})")),
+    ("slack-webhook", re.compile(r"hooks\.slack\.com/services/(T[A-Z0-9]{8,}/B[A-Z0-9]{8,}/[A-Za-z0-9]{20,})")),
+    ("discord-webhook", re.compile(r"discord(?:app)?\.com/api/webhooks/(\d{17,}/[A-Za-z0-9_-]{60,})")),
     ("generic-assigned-secret", re.compile(
         r"(?i)\b(?:password|passwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token)\b"
         r"\s*[:=]\s*[\"']([^\"'\s]{8,})[\"']")),

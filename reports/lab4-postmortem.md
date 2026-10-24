@@ -2,7 +2,7 @@
 
 Injected on purpose in Task 6 (`make replay-drift TARGET_URL=<staging>`: `temp_c` shifted +6 °C). Timeline, screenshots and the evidence behind the numbers are in [`lab4-evidence.md`](lab4-evidence.md); cost figures come from [`lab4-threshold.json`](lab4-threshold.json) and the model in this repo.
 
-**What fired:** The scheduled drift check posted to Discord at ‹ALERT TIME ICT›: `temp_c` PSI 0.34 ≥ 0.10 (KS 0.24, window mean 79.7 → 85.2 °C), with schema, nulls and ranges clean. That was ‹N› min after the injection at ‹INJECTION TIME›. The dashboard's rolling PSI crossed 0.10 within about 30 s.
+**What fired:** The scheduled drift check posted to Slack at ‹ALERT TIME ICT›: `temp_c` PSI 0.34 ≥ 0.10 (KS 0.24, window mean 79.7 → 85.2 °C), with schema, nulls and ranges clean. That was ‹N› min after the injection at ‹INJECTION TIME›. The dashboard's rolling PSI crossed 0.10 within about 30 s.
 
 **True cause:** A calibration offset upstream, not the world changing. Every machine moved by exactly +6 °C at the same instant, while vibration, pressure and load did not move with it, and real overheating would. It is a broken producer whose output still passes the schema (85 °C is plausible), so it looks like data drift.
 

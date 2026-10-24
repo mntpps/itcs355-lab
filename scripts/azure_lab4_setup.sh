@@ -170,14 +170,14 @@ if command -v gh >/dev/null && gh auth status >/dev/null 2>&1; then
   gh api -X PUT "repos/$REPO/environments/staging" >/dev/null
   echo "set ${#SECRETS[@]} secrets, ${#VARS[@]} variables, environment 'staging'"
   if ! gh secret list -R "$REPO" | grep -q ALERT_WEBHOOK_URL; then
-    printf '\nPaste your Discord (or Slack) webhook URL for drift alerts, or press Enter to skip: '
+    printf '\nPaste your Slack (or Discord) webhook URL for drift alerts, or press Enter to skip: '
     read -rs HOOK; echo
     [ -n "$HOOK" ] && printf '%s' "$HOOK" | gh secret set ALERT_WEBHOOK_URL -R "$REPO" && echo "ALERT_WEBHOOK_URL set"
   fi
 else
   echo "gh not available — set these in GitHub > Settings > Secrets and variables > Actions:"
   echo "  Secrets:"; for kv in "${SECRETS[@]}"; do echo "    ${kv%%=*}"; done
-  echo "    ALERT_WEBHOOK_URL   (your Discord/Slack webhook)"
+  echo "    ALERT_WEBHOOK_URL   (your Slack webhook)"
   echo "  Variables:"; for kv in "${VARS[@]}"; do echo "    $kv"; done
   echo "  And create an environment named 'staging' (Settings > Environments)."
   echo "  Secret values: AZURE_CLIENT_ID=$CLIENT_ID AZURE_TENANT_ID=$TENANT AZURE_SUBSCRIPTION_ID=$SUB"

@@ -217,7 +217,7 @@ service emits all of them itself on `/metrics` (`service/monitoring.py`).
 runs every 15 minutes from `.github/workflows/drift.yml`. It reads the staging service's
 rolling window of the last 500 accepted inputs (token-protected
 `/monitoring/window`), checks schema, nulls and ranges **before** reporting anything as
-drift, writes the scores to Azure Monitor custom metrics, and posts alerts to Discord. A
+drift, writes the scores to Azure Monitor custom metrics, and posts alerts to Slack. A
 run that alerts also fails, so GitHub's failure email is a second channel.
 
 **Rule: PSI ≥ 0.10 on any physical sensor, or ≥ 0.29 on `load_pct`, over a 500-reading
