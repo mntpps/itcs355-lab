@@ -8,10 +8,10 @@ this repository and can be re-run with the command shown.
 
 | | |
 |---|---|
-| Branch / PR | `lab4-bad-contract` → ‹fill: PR URL›, closed without merging |
+| Branch / PR | `lab4-bad-contract` → [PR #1](https://github.com/mntpps/itcs355-lab/pull/1), closed without merging |
 | Change | `scripts/make_dataset.py` emits `temp_c` in Fahrenheit ("sensor vendor v2 feed") |
-| Failing run | ‹fill: Actions run URL› |
-| Stage that stopped it | **Data contract tests**, after secret scan, lint, portability audit and 27 unit tests passed. Build, integration and push never ran. |
+| Failing run | [CI run 40182494621](https://github.com/mntpps/itcs355-lab/actions/runs/40182494621), job [`test`](https://github.com/mntpps/itcs355-lab/actions/runs/40182494621/job/121136335092) failed after 51 s; `build` skipped |
+| Stage that stopped it | **Data contract tests**. Secret scan, hash-checked install, lint, portability audit, dataset generation and unit tests all passed first. Model behaviour tests, build, integration and push never ran. |
 | Test that caught it | `tests/test_data.py::test_features_within_plausible_ranges` |
 | Error | `AssertionError: temp_c above plausible ceiling 140.0: 240.215` |
 | Also failed | `test_feature_distributions_match_training_reference`: `temp_c: mean 175.24 is 9.42 SD from the training reference 79.67 (limit 0.25)`, and `test_serving_reference_profile_is_current` (the data no longer matches the drift reference in the image) |
