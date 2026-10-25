@@ -378,6 +378,7 @@ class AzureAdapter(CloudAdapter):
         ]
 
         priority = {
+            "Microsoft.App/jobs": 0,              # the drift schedule goes first
             "Microsoft.App/containerApps": 0,
             "Microsoft.App/managedEnvironments": 1,
         }

@@ -214,7 +214,9 @@ service emits all of them itself on `/metrics` (`service/monitoring.py`).
 ### Drift detector — the threshold and why
 
 `monitoring/drift.py` (PSI and KS, in `src/drift_stats.py`, shared with the dashboard)
-runs every 15 minutes from `.github/workflows/drift.yml`. It reads the staging service's
+runs every 15 minutes as an **Azure Container Apps job** (`itcs355-drift`, running
+`monitoring/scheduled.py` in the serving image, so CD keeps detector and service on one build).
+It reads the staging service's
 rolling window of the last 500 accepted inputs (token-protected
 `/monitoring/window`), checks schema, nulls and ranges **before** reporting anything as
 drift, writes the scores to Azure Monitor custom metrics, and posts alerts to Slack. A
@@ -238,7 +240,7 @@ alone (0.18 vs KS 0.11). Mix stays below threshold on the whole file.
 ### Known limitations
 
 - The rolling window and the metrics live in process memory, so staging runs one replica with one uvicorn worker. A restart, including scale-from-zero, empties the window, and the detector then reports "no verdict" rather than a false all-clear. Production would write accepted inputs to a table and compute the window there.
-- GitHub delays scheduled runs under load, so detection latency is "≤ 15 min + GitHub's delay". The post-mortem's fix, a Prometheus alert rule on the existing series, brings it to about 3 minutes.
+- The detector first ran on a GitHub Actions schedule. That schedule fired 4 times in 9 hours, then not at all for 5 hours, including the hour after the injected drift, so it could not detect anything. GitHub only promises scheduled runs best-effort. The check moved to an Azure Container Apps cron job; `drift.yml` stays as a manual `gh workflow run` fallback. Detection latency is now at most 15 minutes plus about a minute of job start-up. The post-mortem's fix, a Prometheus alert rule on the existing series, would bring it to about 3 minutes.
 - The CD identity has Contributor on the resource group. That is broader than needed: updating a Container App also needs join rights on its environment, and a custom role with `Microsoft.App/containerApps/*` plus `managedEnvironments/join/action` would be the least-privilege version.
 
 ### Teardown

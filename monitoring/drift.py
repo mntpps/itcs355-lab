@@ -188,7 +188,13 @@ def main() -> int:
 
     reference = load_reference(args.reference, args.reference_split)
     if args.current_url:
-        current, meta = fetch_window(args.current_url)
+        try:
+            current, meta = fetch_window(args.current_url)
+        except (OSError, ValueError) as exc:  # URLError and HTTPError are OSErrors
+            # A detector that cannot see its inputs is blind, not "ok": fail the run.
+            print(f"CHECK FAILED  could not read {args.current_url}/monitoring/window: {exc}",
+                  file=sys.stderr)
+            return 1
     else:
         current, meta = pd.read_csv(args.current), {"n": None}
         meta["n"] = len(current)

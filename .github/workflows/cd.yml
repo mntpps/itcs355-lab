@@ -36,6 +36,7 @@ env:
   IDENTITY_REF: ${{ vars.IDENTITY_REF }}
   MODEL_VERSION: ${{ vars.MODEL_VERSION }}
   CONTAINER_APP: ${{ vars.CONTAINER_APP }}
+  DRIFT_JOB: ${{ vars.DRIFT_JOB || 'itcs355-drift' }}
   SHA: ${{ github.event.workflow_run.head_sha }}
 
 jobs:
@@ -83,6 +84,18 @@ jobs:
         # A deploy that is not smoke-tested is a deploy you have not verified. Waits for
         # /ready to report THIS build, so a smoke test cannot pass against the old one.
         run: python scripts/smoke_test.py --app "$CONTAINER_APP" --expect-build "$SHA" --ready-timeout 300
+
+      - name: Move the scheduled drift job to the same build
+        # The job runs this image's monitoring/scheduled.py. Keeping it on the app's
+        # build means the detector and the service always share one drift_stats.py.
+        run: |
+          if az containerapp job show -n "$DRIFT_JOB" -g "$PROJECT_ID" -o none 2>/dev/null; then
+            az containerapp job update -n "$DRIFT_JOB" -g "$PROJECT_ID" \
+              --image "$CONTAINER_REGISTRY:$SHA" --only-show-errors -o none
+            echo "drift job $DRIFT_JOB now on $SHA"
+          else
+            echo "no drift job yet — scripts/azure_lab4_setup.sh creates it"
+          fi
 
       - name: Roll back on failure
         if: failure() && steps.before.outputs.image != ''

@@ -52,11 +52,11 @@ make replay-drift TARGET_URL=https://<staging-fqdn>    # stamps reports/lab4-tim
 |---|---|
 | Injection start (`reports/lab4-timeline.md`) | ‹fill› |
 | Dashboard PSI crosses 0.10 | ‹fill› |
-| Scheduled drift run that fired | ‹fill: run URL and start time› |
+| Scheduled job execution that fired | ‹fill: execution name and start time from `az containerapp job execution list`› |
 | Alert received in Slack | ‹fill› — screenshot ‹`reports/lab4/alert.png`› |
 | **Detection time, injection → alert** | ‹fill› |
 
-Expected bound: up to 15 minutes from the schedule, plus GitHub's own delay on scheduled runs. In the local rehearsal (15 readings/s, same code), the dashboard PSI went from 0.06 to 0.22 between 15 and 30 s after injection, and the detector's PSI for the full drifted window was 0.34. The service's rolling PSI and the detector's PSI agreed to four decimal places, because they share `src/drift_stats.py`.
+Expected bound: up to 15 minutes from the job's cron, plus about a minute of start-up. The first attempt used GitHub's schedule instead. It never fired in the hour after an injection at 17:12:59 ICT on 2026-10-25, which is why the check now runs as an Azure Container Apps job. Job executions and their start times: `az containerapp job execution list -n itcs355-drift -g itcs355-6688020 -o table`. In the local rehearsal (15 readings/s, same code), the dashboard PSI went from 0.06 to 0.22 between 15 and 30 s after injection, and the detector's PSI for the full drifted window was 0.34. The service's rolling PSI and the detector's PSI agreed to four decimal places, because they share `src/drift_stats.py`.
 
 ## 5. Which statistic catches which fault
 

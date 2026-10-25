@@ -15,6 +15,11 @@ WORKDIR /app
 COPY --chown=runner:runner service/ ./service/
 COPY --chown=runner:runner src/ ./src/
 COPY --chown=runner:runner cloudlayer/ ./cloudlayer/
+# The scheduled drift job (Azure Container Apps job) runs this same image with
+# `python monitoring/scheduled.py`, so the detector ships with the code it watches and
+# CD moves both to the same commit.
+COPY --chown=runner:runner monitoring/ ./monitoring/
+COPY --chown=runner:runner scripts/make_dataset.py ./scripts/make_dataset.py
 USER runner
 
 EXPOSE 8080

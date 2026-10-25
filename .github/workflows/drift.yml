@@ -1,27 +1,20 @@
-# ITCS355 Lab 4 — scheduled drift detection.
+# ITCS355 Lab 4 — drift check, MANUAL fallback.
 #
-# Every 15 minutes: read the staging service's rolling window of the last 500 accepted
-# inputs, score it against the training reference with the same PSI the dashboard uses,
-# write the scores to Azure Monitor as custom metrics, and post an alert to the
-# ALERT_WEBHOOK_URL channel (Slack or Discord) when a feature crosses its threshold.
-# A run that alerts also FAILS, so GitHub's own failed-workflow email is a second channel.
+# The scheduled check runs as an Azure Container Apps job (`itcs355-drift`, every 15
+# minutes, `python monitoring/scheduled.py` in the serving image), created by
+# scripts/azure_lab4_setup.sh. This workflow runs the same detector on demand:
 #
-# Why GitHub Actions rather than an Azure scheduler: it is free for a public repository,
-# it reuses the OIDC identity CD already has, and it is not a billed resource — but it IS
-# the thing people forget at teardown. `make teardown` disables this workflow; check the
-# Actions tab afterwards.
+#   gh workflow run drift.yml
 #
-# GitHub delays scheduled runs under load (5–20 minutes is common), so detection latency
-# is "up to 15 minutes, plus GitHub's delay" — measured, not assumed, in the exercise.
+# It used to run on a GitHub schedule. On 2026-10-24/25 that schedule (*/15) fired
+# 4 times in 9 hours (21:12, 23:15, 01:23, 06:29 UTC) and then not at all for 5 hours,
+# including the hour after the injected drift. GitHub only promises scheduled runs
+# best-effort, so a detector whose latency matters cannot depend on it. Kept as a
+# manual tool, it also gives exactly one alert per drift instead of two.
 
 name: Drift check
 
 on:
-  schedule:
-    # Every 15 minutes, offset from :00/:15/:30/:45 — the slots every other repository
-    # also picked, which GitHub delays or drops first under load. On 2026-10-24/25 the
-    # */15 schedule fired only 4 times in 9 hours (21:12, 23:15, 01:23, 06:29 UTC).
-    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
 
 permissions:

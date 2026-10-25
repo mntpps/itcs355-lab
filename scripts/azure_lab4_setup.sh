@@ -200,6 +200,47 @@ else
   [ "$NEW_TOKEN" = "1" ] && echo "  MONITORING_TOKEN=$MONITORING_TOKEN   (shown once; also stored as the app secret)"
 fi
 
+step "Scheduled drift job (Azure Container Apps job, every 15 minutes)"
+# Replaces GitHub's schedule, which fired 4 times in 9 hours and then stopped. The job
+# runs the serving image's monitoring/scheduled.py as the itcs355-github identity, which
+# already has AcrPush (so it can pull) and Monitoring Metrics Publisher on the app.
+JOB="${DRIFT_JOB:-itcs355-drift}"
+IMAGE="$(az containerapp show -n "$APP" -g "$RG" --query "properties.template.containers[0].image" -o tsv)"
+HEAD_SHA="$(git rev-parse HEAD)"
+if [ "${IMAGE##*:}" != "$HEAD_SHA" ]; then
+  echo "Staging serves $IMAGE, but HEAD is $HEAD_SHA."
+  echo "Push, wait for CD to finish (Actions tab), then re-run this script: the job must"
+  echo "start on an image that contains monitoring/scheduled.py."
+  exit 1
+fi
+if ! az containerapp job show -n "$JOB" -g "$RG" -o none 2>/dev/null; then
+  IDENTITY_ID="$(az identity show -n "$IDENTITY" -g "$RG" --query id -o tsv)"
+  ENV_ID="$(az containerapp show -n "$APP" -g "$RG" --query properties.environmentId -o tsv)"
+  HOOK="${ALERT_WEBHOOK_URL:-}"
+  if [ -z "$HOOK" ]; then
+    printf 'Paste the Slack webhook URL for the drift job (the same one as the GitHub secret): '
+    read -rs HOOK; echo
+  fi
+  [ -n "$HOOK" ] || { echo "the job needs a webhook URL to alert"; exit 1; }
+  az containerapp job create -n "$JOB" -g "$RG" --environment "$ENV_ID" \
+    --trigger-type Schedule --cron-expression "*/15 * * * *" \
+    --replica-timeout 300 --replica-retry-limit 0 --parallelism 1 --replica-completion-count 1 \
+    --image "$IMAGE" --registry-server "${REGISTRY%%/*}" --registry-identity "$IDENTITY_ID" \
+    --mi-user-assigned "$IDENTITY_ID" --cpu 0.25 --memory 0.5Gi \
+    --secrets "monitoring-token=$MONITORING_TOKEN" "alert-webhook=$HOOK" \
+    --env-vars "STAGING_URL=https://$FQDN" "MONITORING_TOKEN=secretref:monitoring-token" \
+      "ALERT_WEBHOOK_URL=secretref:alert-webhook" "CLOUD_PROVIDER=azure" "PROJECT_ID=$RG" \
+      "REGION=$REGION" "MODEL_REGISTRY_NAME=$MODEL_NAME" "AZURE_SUBSCRIPTION_ID=$SUB" \
+      "CONTAINER_APP=$APP" "AZURE_CLIENT_ID=$CLIENT_ID" \
+    --command "python" "monitoring/scheduled.py" \
+    --tags course=itcs355 student="$RG" lab=4 -o none
+  echo "created $JOB on $IMAGE"
+else
+  echo "$JOB already exists (CD keeps its image on the latest build)"
+fi
+echo "executions:  az containerapp job execution list -n $JOB -g $RG -o table"
+echo "run now:     az containerapp job start -n $JOB -g $RG"
+
 step "Local Prometheus target for the dashboard"
 printf '[{"targets": ["%s:443"], "labels": {"env": "staging"}}]\n' "$FQDN" > monitoring/stack/targets/staging.local.json
 echo "wrote monitoring/stack/targets/staging.local.json"
