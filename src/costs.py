@@ -20,7 +20,10 @@ PRICE_TABLE: dict[str, dict[str, float]] = {
         "ml.g4dn.xlarge": 26.0,
     },
     "azure": {
-        "Standard_DS3_v2": 8.1,
+        # Verified 2026-10-25, southeastasia Linux pay-as-you-go: DS2_v2 $0.158/h, DS3_v2
+        # $0.316/h, at 33.76 THB/USD. DS2_v2 is the Azure ML training cluster used in Lab 5.
+        "Standard_DS2_v2": 5.33,
+        "Standard_DS3_v2": 10.67,
         "Standard_F4s_v2": 6.9,
         "Standard_NC4as_T4_v3": 24.5,
     },
