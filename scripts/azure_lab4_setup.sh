@@ -152,7 +152,12 @@ step "Role assignments"
 ACR_ID="$(az acr show -n "$ACR_NAME" --query id -o tsv)"
 RG_ID="$(az group show -n "$RG" --query id -o tsv)"
 assign() {
-  if [ "$(az role assignment list --assignee "$PRINCIPAL_ID" --role "$1" --scope "$2" --query 'length(@)' -o tsv)" = "0" ]; then
+  # No parentheses in the query: az.cmd runs through cmd.exe on Windows, which mangles
+  # them ("-o was unexpected at this time"). A separate assignment so that, under set -e,
+  # a failing lookup stops the script instead of reading as "already assigned".
+  local existing
+  existing="$(az role assignment list --assignee "$PRINCIPAL_ID" --role "$1" --scope "$2" --query "[].id" -o tsv)"
+  if [ -z "$existing" ]; then
     az role assignment create --assignee-object-id "$PRINCIPAL_ID" --assignee-principal-type ServicePrincipal \
       --role "$1" --scope "$2" -o none
   fi
