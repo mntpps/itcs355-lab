@@ -127,7 +127,18 @@ PRINCIPAL_ID="$(az identity show -n "$IDENTITY" -g "$RG" --query principalId -o 
 echo "client id $CLIENT_ID"
 
 step "Federated credentials (who may become this identity)"
-for pair in "gh-main:repo:$REPO:ref:refs/heads/main" "gh-staging:repo:$REPO:environment:staging"; do
+# GitHub's OIDC subject now embeds the owner and repository IDs
+# (repo:owner@123/name@456:...), so a deleted-and-recreated repository with the same
+# name cannot inherit this trust. Register that form, plus the legacy name-only form in
+# case the repository is set to use it. Azure matches the subject exactly.
+IDS="${GITHUB_REPO_IDS:-$(gh api "repos/$REPO" --jq '"\(.owner.login)@\(.owner.id)/\(.name)@\(.id)"' 2>/dev/null || true)}"
+PAIRS=("gh-main:repo:$REPO:ref:refs/heads/main" "gh-staging:repo:$REPO:environment:staging")
+if [ -n "$IDS" ]; then
+  PAIRS+=("gh-main-id:repo:$IDS:ref:refs/heads/main" "gh-staging-id:repo:$IDS:environment:staging")
+else
+  echo "  (gh unavailable: set GITHUB_REPO_IDS=owner@<id>/repo@<id> to register the ID-based subjects)"
+fi
+for pair in "${PAIRS[@]}"; do
   name="${pair%%:*}"; subject="${pair#*:}"
   if ! az identity federated-credential show -n "$name" --identity-name "$IDENTITY" -g "$RG" -o none 2>/dev/null; then
     az identity federated-credential create -n "$name" --identity-name "$IDENTITY" -g "$RG" \
