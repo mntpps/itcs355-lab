@@ -1,0 +1,2 @@
+- 2026-10-25T17:12:59+07:00  INJECTION START  source=data\current.csv temp_c +6C -> staging
+- 2026-10-25T21:33:28+07:00  INJECTION START  source=data\current.csv temp_c +6C -> staging (Azure job)
