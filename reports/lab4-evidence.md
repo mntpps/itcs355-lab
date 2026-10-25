@@ -1,8 +1,8 @@
 # Lab 4 — evidence
 
-Everything a grader needs to check without asking. Items marked **‹fill›** come from the
-staging run and are filled in once it has happened; everything else was measured from
-this repository and can be re-run with the command shown.
+Everything a grader needs to check without asking. The staging results come from the run
+on 2026-10-25, with screenshots in `reports/lab4/`; everything else was measured from this
+repository and can be re-run with the command shown.
 
 ## 1. Blocked bad commit (Task 3) — required
 
@@ -79,4 +79,21 @@ On 500-reading windows (`make threshold-study`), the chosen rule catches `shift 
 
 ## 6. Teardown
 
-Teardown output (`make teardown && make cost-report`, or on Windows the adapter's `teardown(cfg.tags(4))` then `scripts/teardown_verify.py --lab 4`): ‹fill›. Teardown deletes everything tagged `lab=4`: the drift job first, so nothing keeps calling a deleted endpoint, then the Container App and the CI/CD identity. Confirm `az containerapp job list -g itcs355-6688020 -o table` comes back empty.
+Run on 2026-10-25 at about 22:12 ICT, after the evidence above was captured:
+
+```
+> get_adapter(cfg).teardown(cfg.tags(4))
+['itcs355-predict', 'itcs355-drift', 'itcs355-github']
+
+> python scripts/teardown_verify.py --lab 4
+searching for resources tagged {'course': 'itcs355', 'student': 'itcs355-6688020', 'lab': '4'}
+PASS  nothing found under these tags
+
+> az containerapp job list -g itcs355-6688020 -o table
+itcs3556688020-monitor / -refresh / -retrain     (the capstone's jobs, not Lab 4's)
+
+> docker compose -f monitoring/stack/docker-compose.yml down
+grafana, prometheus, network removed
+```
+
+The drift job was deleted along with the staging app, so no schedule outlives the endpoint it calls. The GitHub `Drift check` workflow is manual-only and cannot run on its own. With the CI/CD identity gone, a push to `main` would now fail at the image push; `scripts/azure_lab4_setup.sh` recreates the identity, app and job if a later lab needs them.
