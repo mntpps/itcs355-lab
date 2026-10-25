@@ -60,20 +60,29 @@ def main() -> int:
     ap.add_argument("--url")
     ap.add_argument("--app")
     ap.add_argument("--expect-build", help="fail unless /ready reports this build SHA")
+    ap.add_argument("--expect-version", help="fail unless /ready reports this model version")
     ap.add_argument("--ready-timeout", type=float, default=180)
     args = ap.parse_args()
     base = (args.url or resolve(args.app)).rstrip("/")
+    return run(base, args.expect_build, args.expect_version, args.ready_timeout)
 
-    deadline = time.time() + args.ready_timeout
+
+def run(base: str, expect_build: str | None = None, expect_version: str | None = None,
+        ready_timeout: float = 180) -> int:
+    """Wait for /ready to report the expected build and model version, then send the
+    three payloads. Returns 0 when all three behave. Used by CD and by the pipeline's
+    deploy_staging step (scripts/deploy.py)."""
+    deadline = time.time() + ready_timeout
     while True:
         try:
             status, ready, _ = call(base + "/ready", timeout=60)
         except (urllib.error.URLError, TimeoutError) as exc:
             status, ready = 0, {"error": str(exc)}
-        if status == 200 and (not args.expect_build or ready.get("build_sha") == args.expect_build):
+        if (status == 200 and (not expect_build or ready.get("build_sha") == expect_build)
+                and (not expect_version or str(ready.get("model_version")) == str(expect_version))):
             break
         if time.time() > deadline:
-            print(f"FAIL  {base}/ready never became ready for this build: {status} {ready}")
+            print(f"FAIL  {base}/ready never became ready for this build/version: {status} {ready}")
             return 1
         time.sleep(5)
     print(f"ready  {ready}")

@@ -1,53 +1,100 @@
 # Lab 5 — pipeline as a neutral DAG.
 #
-# This file describes WHAT runs. cloudlayer/pipelines.py compiles it into SageMaker
-# Pipelines, Azure ML Pipelines, or Vertex AI Pipelines. Keeping the DAG here rather than
-# in provider SDK calls is what makes the pipeline portable, and it is why every step is
-# a container rather than a function.
+# This file describes WHAT runs. cloudlayer/pipelines.py compiles it into a provider's
+# pipeline service (Azure ML here). Nothing below names a provider: placeholders are
+# {inputs.x}, {outputs.y} and {params.z}, which the compiler translates into the
+# provider's own binding syntax, and dollar-brace variables come from cloud.env.
+#
+#   python -m cloudlayer.pipelines compile                 # writes pipeline/build/, submits nothing
+#   python -m cloudlayer.pipelines submit                  # one triggered execution
+#   python -m cloudlayer.pipelines submit --set model_kind=logreg
+#   python -m cloudlayer.pipelines schedule                # Task 3
+#
+# Every step runs the same training image (Dockerfile), tagged train-<commit>.
+# Step logic lives in that image (scripts/, src/, tests/); this file only wires it.
 
 name: itcs355-training-pipeline
-schedule: "0 2 * * 0"          # TODO(Lab 5): justify this in your README, or change it
+experiment: itcs355-lab5
+image: "${CONTAINER_REGISTRY}:train-${IMAGE_TAG}"
+compute: "${TRAIN_INSTANCE}"
+workdir: /app
+
+# Weekly, Monday 03:00 Bangkok time. The argument is in the README's Task 3 section.
+schedule:
+  cron: "0 3 * * 1"
+  timezone: Asia/Bangkok
+
+params:
+  data_seed: weekly        # this ISO week's batch; an integer replays a specific one
+  fault: none              # fahrenheit: an upstream unit change, to show the abort
+  model_kind: rf           # rf (the production recipe) | logreg
 
 steps:
   - name: ingest
-    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
-    command: ["python", "scripts/make_dataset.py"]
+    command: >-
+      python scripts/make_dataset.py --seed {params.data_seed} --fault {params.fault}
+      --out {outputs.raw_data}/sensors.csv
     outputs: [raw_data]
 
   - name: validate
-    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
-    command: ["pytest", "-q", "tests/test_data.py"]
-    depends_on: [ingest]
+    # The data contract tests CI runs, on this batch. The one deselected test checks that
+    # the repo's committed drift reference matches the repo's committed data, a property
+    # of the repository, not of a new batch.
+    inputs: {raw_data: ingest}
+    command: >-
+      cp {inputs.raw_data}/sensors.csv data/raw/sensors.csv &&
+      python -m pytest -q -p no:cacheprovider tests/test_data.py
+      -k "not serving_reference_profile" &&
+      cp {inputs.raw_data}/sensors.csv {outputs.validated_data}/sensors.csv
+    outputs: [validated_data]
     on_failure: abort
     # Aborting here is the point. A pipeline that trains on data failing its own contract
-    # produces a model nobody should trust, and it will do so silently.
+    # produces a model nobody should trust, and it will do so silently. Train consumes
+    # validate's output, not ingest's, so it cannot start on unvalidated data.
 
   - name: train
-    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
-    command: ["python", "-m", "src.train", "--metrics-out", "/outputs/metrics.json"]
-    depends_on: [validate]
-    instance: "${TRAIN_INSTANCE}"
-    spot: true
+    inputs: {validated_data: validate}
+    command: >-
+      cp {inputs.validated_data}/sensors.csv data/raw/sensors.csv &&
+      python -m src.train --model {params.model_kind} --experiment itcs355-lab5
+      --metrics-out {outputs.metrics}/metrics.json --model-out {outputs.model}
     outputs: [model, metrics]
+    spot: true
+    # Requested, not granted: this subscription's low-priority quota is 0 vCPUs
+    # (Lab 2), so the compiler warns and the cluster runs dedicated. Training takes
+    # about a second, so there is nothing worth checkpointing; a preempted run would
+    # simply be re-run.
 
   - name: evaluate
-    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
-    command: ["python", "scripts/evaluation_gate.py", "--metrics", "/outputs/metrics.json"]
-    depends_on: [train]
+    inputs: {model: train, metrics: train, validated_data: validate}
+    command: >-
+      python scripts/evaluation_gate.py --metrics {inputs.metrics}/metrics.json
+      --model {inputs.model} --data {inputs.validated_data}/sensors.csv
+      --decision-out {outputs.gate_decision}
     outputs: [gate_decision]
 
   - name: register
-    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
-    command: ["python", "scripts/register.py"]
-    depends_on: [evaluate]
-    condition: "gate_decision == 'pass'"
-    # TODO(Lab 5): a pipeline that registers unconditionally has no gate. The condition
-    # must be real, and the grader will try to make it fail.
+    inputs: {metrics: train, gate_decision: evaluate}
+    condition: {input: gate_decision, file: decision, equals: pass}
+    command: >-
+      python scripts/register.py --metrics {inputs.metrics}/metrics.json
+      --gate {inputs.gate_decision} --registered-out {outputs.registered}
+    outputs: [registered]
+    # A pipeline that registers unconditionally has no gate. When the decision is "fail"
+    # this step's command never runs (the compiler wraps it in the condition), and
+    # register.py refuses on its own as well.
 
   - name: deploy_staging
-    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
-    command: ["python", "scripts/deploy.py", "--target", "staging"]
-    depends_on: [register]
+    inputs: {registered: register, gate_decision: evaluate}
+    condition: {input: gate_decision, file: decision, equals: pass}
+    identity: deployer
+    command: python scripts/deploy.py --target staging --registered {inputs.registered}
+
+# Which identity each step runs as (Task 2). Every step is `training` unless it says
+# otherwise; only deploy_staging may change what staging serves.
+identities:
+  training: "${TRAIN_IDENTITY_CLIENT_ID}"
+  deployer: "${DEPLOY_IDENTITY_CLIENT_ID}"
 
 tags:
   course: itcs355

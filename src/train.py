@@ -11,18 +11,27 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import subprocess
 from pathlib import Path
 
 import mlflow
 import mlflow.sklearn
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import average_precision_score, roc_auc_score
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 
 from src import config, data, seeds
 
 
 def git_commit() -> str:
+    # Inside an image there is no .git; the build stamps the commit instead (the image
+    # tag is the commit SHA, and the pipeline passes it as GIT_COMMIT).
+    if os.environ.get("GIT_COMMIT"):
+        return os.environ["GIT_COMMIT"]
     try:
         out = subprocess.run(
             ["git", "rev-parse", "HEAD"],
@@ -38,12 +47,31 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--n-estimators", type=int, default=200)
     p.add_argument("--max-depth", type=int, default=8)
     p.add_argument("--min-samples-leaf", type=int, default=5)
+    p.add_argument("--model", choices=("rf", "logreg"), default="rf",
+                   help="rf: the random forest every lab so far used. logreg: standardised "
+                        "logistic regression, the Lab 5 candidate (see reports/lab5-gate.json)")
     p.add_argument("--seed", type=int, default=seeds.DEFAULT_SEED)
     p.add_argument("--experiment", default="itcs355-lab1")
     p.add_argument("--run-name", default=None)
     p.add_argument("--metrics-out", type=Path, default=None,
                    help="Write final metrics as JSON. Used by `make verify`.")
+    p.add_argument("--model-out", type=Path, default=None,
+                   help="Also save the MLflow model here (a pipeline step's output folder).")
     return p.parse_args()
+
+
+def build_model(kind: str, args: argparse.Namespace, seed: int):
+    if kind == "logreg":
+        # The failure process is (by construction of the data) close to logistic in the
+        # raw readings, so a linear model on standardised features is a real contender.
+        return make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000))
+    return RandomForestClassifier(
+        n_estimators=args.n_estimators,
+        max_depth=args.max_depth,
+        min_samples_leaf=args.min_samples_leaf,
+        random_state=seed,
+        n_jobs=-1,
+    )
 
 
 def main() -> None:
@@ -60,6 +88,7 @@ def main() -> None:
 
     with mlflow.start_run(run_name=args.run_name):
         mlflow.log_params({
+            "model": args.model,
             "n_estimators": args.n_estimators,
             "max_depth": args.max_depth,
             "min_samples_leaf": args.min_samples_leaf,
@@ -76,13 +105,7 @@ def main() -> None:
             "n_test_rows": len(test_df),
         })
 
-        model = RandomForestClassifier(
-            n_estimators=args.n_estimators,
-            max_depth=args.max_depth,
-            min_samples_leaf=args.min_samples_leaf,
-            random_state=seed,
-            n_jobs=-1,
-        )
+        model = build_model(args.model, args, seed)
         model.fit(train_df[data.FEATURES], train_df[data.TARGET])
 
         metrics: dict[str, float] = {}
@@ -92,18 +115,27 @@ def main() -> None:
             metrics[f"{name}_pr_auc"] = float(average_precision_score(part[data.TARGET], proba))
         mlflow.log_metrics(metrics)
         model_dir = "/tmp/model"
+        shutil.rmtree(model_dir, ignore_errors=True)
         mlflow.sklearn.save_model(
             model,
             model_dir,
             skops_trusted_types=["sklearn.tree._tree.Tree"],
         )
         mlflow.log_artifacts(model_dir, artifact_path="model")
+        if args.model_out:
+            shutil.copytree(model_dir, args.model_out, dirs_exist_ok=True)
 
-        print(json.dumps({"seed": seed, "data_fingerprint": fingerprint, **metrics}, indent=2))
+        record = {
+            "seed": seed, "data_fingerprint": fingerprint, "model": args.model,
+            # Lineage: the registry entry points back at this run, and the run carries
+            # the commit and the data fingerprint.
+            "run_id": mlflow.active_run().info.run_id, "git_commit": git_commit(),
+            **metrics,
+        }
+        print(json.dumps(record, indent=2))
         if args.metrics_out:
             args.metrics_out.parent.mkdir(parents=True, exist_ok=True)
-            args.metrics_out.write_text(json.dumps(
-                {"seed": seed, "data_fingerprint": fingerprint, **metrics}, indent=2))
+            args.metrics_out.write_text(json.dumps(record, indent=2))
 
 
 if __name__ == "__main__":

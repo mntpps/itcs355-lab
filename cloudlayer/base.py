@@ -86,6 +86,14 @@ class CloudAdapter(ABC):
             return gemini.generate(prompt, params)
         raise NotImplementedError(f"no LLM provider {os.environ.get('LLM_PROVIDER')!r}")
 
+    def rollout_model(self, endpoint: str, version: str) -> tuple[str, str]:
+        """Point a running endpoint at another registered model version, without changing
+        its image. Returns (endpoint URL, the version it served before), so the caller can
+        roll back. Lab 5's pipeline deploys with this: a new model is configuration, not a
+        new build.
+        """
+        raise NotImplementedError("Lab 5")
+
     def teardown(self, tags: dict[str, str]) -> list[str]:
         """Delete every resource carrying these tags. Returns what was deleted.
 

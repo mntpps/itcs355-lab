@@ -34,7 +34,8 @@ env:
   MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
   MODEL_REGISTRY_NAME: ${{ vars.MODEL_REGISTRY_NAME }}
   IDENTITY_REF: ${{ vars.IDENTITY_REF }}
-  MODEL_VERSION: ${{ vars.MODEL_VERSION }}
+  # No MODEL_VERSION: since Lab 5 the training pipeline decides which model staging serves.
+  # CD ships code and keeps the model version the app already has.
   CONTAINER_APP: ${{ vars.CONTAINER_APP }}
   DRIFT_JOB: ${{ vars.DRIFT_JOB || 'itcs355-drift' }}
   SHA: ${{ github.event.workflow_run.head_sha }}
@@ -110,4 +111,6 @@ jobs:
       - name: Summary
         if: success()
         run: |
-          echo "### Staging is serving \`$CONTAINER_REGISTRY:$SHA\` (model v$MODEL_VERSION)" >> "$GITHUB_STEP_SUMMARY"
+          version=$(az containerapp show -n "$CONTAINER_APP" -g "$PROJECT_ID" \
+            --query "properties.template.containers[0].env[?name=='MODEL_VERSION'].value | [0]" -o tsv)
+          echo "### Staging is serving \`$CONTAINER_REGISTRY:$SHA\` (model v$version)" >> "$GITHUB_STEP_SUMMARY"

@@ -26,6 +26,10 @@ __pycache__/
 
 # Lab 4
 !reports/lab4-threshold.json
+!reports/lab5-gate.json
 data/current.csv
 monitoring/stack/targets/*.local.json
 .venv-win/
+
+# Lab 5: compiled provider pipeline definitions (regenerate with python -m cloudlayer.pipelines compile)
+pipeline/build/

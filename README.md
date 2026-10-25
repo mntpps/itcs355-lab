@@ -249,6 +249,46 @@ alone (0.18 vs KS 0.11). Mix stays below threshold on the whole file.
 disables the drift schedule**. A schedule that survives teardown keeps calling a deleted
 endpoint. `make cost-report` then confirms nothing tagged is left.
 
+## Lab 5 — Cloud MLOps and cost
+
+The cost estimate (committed before any of this ran) and the final accounting are in [`reports/lab5-cost.md`](reports/lab5-cost.md). Part B, the LLM step, is in [`reports/lab5-llm.md`](reports/lab5-llm.md).
+
+### Training pipeline (Task 1)
+
+```mermaid
+flowchart LR
+    I["ingest<br>this week's batch"] --> V{"validate<br>contract tests"}
+    V -->|fail| AB["pipeline fails<br>nothing trained"]
+    V -->|pass| T["train"] --> E{"gate<br>paired vs production"}
+    E -->|fail| SKIP["register and deploy<br>skip, logged"]
+    E -->|pass| R["register v(n+1)<br>tag role=production"] --> D["deploy_staging<br>smoke test, roll back"]
+```
+
+`pipeline/pipeline.yaml` is the DAG, with no provider names in it. `cloudlayer/pipelines.py` compiles it to an Azure ML pipeline job, and `python -m cloudlayer.pipelines submit` runs it on the `itcs355-lab5-cpu` cluster. Every step runs the training image `itcs355:train-<commit>` that CI pushes, so step logic lives in the image and the YAML only wires steps together.
+
+- **Validate** runs `tests/test_data.py`, the same data contract tests CI runs, on the new batch. Train reads validate's *output* rather than ingest's, so it cannot start on data that failed. `--set fault=fahrenheit` replays the Lab 4 unit change to show the abort.
+- **Register** runs only when the gate's decision file says `pass`, and `register.py` checks the decision again itself. Lineage is stored as tags on the model version: training run, commit, data fingerprint, pipeline run, and the paired gain and incumbent version the gate measured.
+- **Production is a tag**, `role=production`, on exactly one version. Promoting a version retires the previous one, so rolling back is one tag change. The gate's incumbent is whichever version carries the tag.
+- **Deploy** changes configuration, not the build. `rollout_model` creates a new staging revision with the new `MODEL_VERSION` through the Resource Manager API, as the deployer identity. The CD smoke test must then pass with `/ready` reporting that version. If it doesn't, staging and the registry both go back to the previous version. CD no longer sets `MODEL_VERSION`, so a code push cannot roll the model back.
+- **Translation choices.** Conditions are evaluated by a shell guard around the step's command rather than Azure's `dsl.condition`, because that node would put an Azure library import into the gate script. Runs are forced to re-execute, because Azure ML otherwise reuses an unchanged step's old result, including a deploy it never redid. Spot capacity is requested and refused (the subscription's low-priority quota is 0), and the compiler says so.
+
+### The evaluation gate, and why these numbers
+
+The gate scores the candidate **and** the production model on the same held-out machines, the candidate's test split of this batch. With only 48 test machines, ROC-AUC on a new batch swings by ±0.02 just from which machines are drawn. Comparing against the 0.8482 the incumbent logged on a different test set would mostly measure the draw. On the same machines, a no-change retrain's delta has a standard deviation of 0.007.
+
+`make gate-study` retrains the production recipe on 100 fresh batches, a case where no real improvement exists, and measures the paired delta ([`reports/lab5-gate.json`](reports/lab5-gate.json)):
+
+| `MIN_IMPROVEMENT` | No-change retrains promoted | Real improvement (logistic regression, +0.013 on average) promoted |
+|---|---|---|
+| 0.002 (scaffold) | 46% | 94% |
+| 0.005 | 28% | 89% |
+| **0.010 (chosen)** | **9%** | **69%** |
+| 0.015 | 1% | 38% |
+
+**Choosing 0.010.** At 0.002 the gate is a coin flip on noise. At 0.010 about five no-change retrains a year get through on a weekly schedule, and each one swaps in a model statistically equal to the one it replaces. That costs a deploy, not a regression. A real improvement gets another chance every week, so at 0.010 it ships within four weeks 99% of the time. At 0.015 that drops to 85%, for a noise rate that was already harmless.
+
+There are two floors as well. A candidate must score **≥ 0.78**: the production recipe never scored below 0.79 on any of the 100 batches, and a degraded recipe never passed. It must also **beat the best single sensor** on the same machines. Ranking by vibration alone scores 0.81, and the production random forest beats that by only 0.03 on average.
+
 ---
 
 ## Checklist before you submit

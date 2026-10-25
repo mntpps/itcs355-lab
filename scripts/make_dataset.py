@@ -10,6 +10,7 @@ grouped by machine_id. See src/data.split.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 from pathlib import Path
 
 import numpy as np
@@ -60,17 +61,32 @@ def build(seed: int) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def weekly_seed(today: dt.date | None = None) -> int:
+    """This ISO week's batch, e.g. 202644. A scheduled ingest gets new readings each week,
+    and re-running inside the same week reproduces the same batch byte for byte."""
+    year, week, _ = (today or dt.date.today()).isocalendar()
+    return year * 100 + week
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--seed", type=int, default=20260101)
+    ap.add_argument("--seed", default="20260101",
+                    help="an integer, or 'weekly' for this ISO week's batch (the scheduled pipeline)")
     ap.add_argument("--out", type=Path, default=Path("data/raw/sensors.csv"))
+    ap.add_argument("--fault", choices=("none", "fahrenheit"), default="none",
+                    help="simulate an upstream fault. fahrenheit: the Lab 4 'sensor vendor v2' "
+                         "feed. Lab 5 uses it to show the pipeline aborting at validation.")
     args = ap.parse_args()
 
-    df = build(args.seed)
+    seed = weekly_seed() if args.seed == "weekly" else int(args.seed)
+    df = build(seed)
+    if args.fault == "fahrenheit":
+        df["temp_c"] = (df["temp_c"] * 9 / 5 + 32).round(3)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(args.out, index=False, lineterminator="\n")
     rate = df["failed_within_7d"].mean()
-    print(f"wrote {args.out}  rows={len(df)}  machines={df.machine_id.nunique()}  positive_rate={rate:.3f}")
+    print(f"wrote {args.out}  seed={seed}  fault={args.fault}  rows={len(df)}  "
+          f"machines={df.machine_id.nunique()}  positive_rate={rate:.3f}")
 
 
 if __name__ == "__main__":

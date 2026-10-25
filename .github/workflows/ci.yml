@@ -80,7 +80,7 @@ jobs:
         run: python scripts/make_dataset.py
 
       - name: Unit tests
-        run: pytest -q tests/test_unit.py tests/test_service.py
+        run: pytest -q tests/test_unit.py tests/test_service.py tests/test_pipeline.py tests/test_workorder.py
 
       - name: Data contract tests
         run: pytest -q tests/test_data.py
@@ -163,3 +163,12 @@ jobs:
             print(get_adapter(config.load()).push_image('itcs355-serve:${{ github.sha }}'))" | tail -1)
           echo "pushed $ref"
           echo "### Pushed \`$ref\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Push training image (the Lab 5 pipeline's steps run it)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker tag itcs355:${{ github.sha }} itcs355:train-${{ github.sha }}
+          ref=$(python -c "from src import config; from cloudlayer.factory import get_adapter; \
+            print(get_adapter(config.load()).push_image('itcs355:train-${{ github.sha }}'))" | tail -1)
+          echo "pushed $ref"
+          echo "### Pushed training image \`$ref\`" >> "$GITHUB_STEP_SUMMARY"

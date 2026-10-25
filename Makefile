@@ -12,7 +12,7 @@ SEED ?= 20260101
 -include cloud.env
 
 .PHONY: help setup cloud-check data test portability-audit train image image-push reproduce verify clean teardown \
-        train-remote tune compare reload-check serve serve-image loadtest deploy smoke drift inject-drift pipeline cost swap-check llm-eval llm-gate \
+        train-remote tune compare reload-check serve serve-image loadtest deploy smoke drift inject-drift pipeline pipeline-run pipeline-schedule gate-study cost swap-check llm-eval llm-gate \
         scan-secrets test-unit test-contract test-behaviour test-integration lab4-setup reference-profile \
         threshold-study monitor-up monitor-down staging-target replay replay-drift drift-live drift-modes cost-report
 
@@ -176,9 +176,17 @@ drift-modes: ## Run the detector against all three injection modes (Drill 4 asks
 	  python -m monitoring.drift --current data/current.csv | head -8; done
 
 # --- Lab 5 -------------------------------------------------------------------
-pipeline: ## Compile pipeline/pipeline.yaml for your provider
-	python -c "from cloudlayer.pipelines import compile_for; from src import config; \
-	compile_for(config.load().provider)"
+pipeline: ## Compile pipeline/pipeline.yaml for your provider (writes pipeline/build/, no cloud calls)
+	python -m cloudlayer.pipelines compile
+
+pipeline-run: ## Submit one pipeline execution, e.g. make pipeline-run SET="model_kind=logreg"
+	python -m cloudlayer.pipelines submit $(foreach kv,$(SET),--set $(kv))
+
+pipeline-schedule: ## Create or update the scheduled retraining
+	python -m cloudlayer.pipelines schedule
+
+gate-study: ## Derive the evaluation gate's thresholds (~2 min) -> reports/lab5-gate.json
+	python scripts/gate_threshold_study.py
 
 llm-eval: ## Run the LLM golden set against recorded responses (offline, free)
 	python scripts/llm_eval.py --out reports/llm_eval-baseline.json

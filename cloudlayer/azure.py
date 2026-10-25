@@ -316,10 +316,14 @@ class AzureAdapter(CloudAdapter):
             memory,
             "--set-env-vars",
             f"MODEL_REGISTRY_NAME={self.cfg.model_registry_name}",
-            f"MODEL_VERSION={os.environ.get('MODEL_VERSION', '2')}",
             f"MLFLOW_TRACKING_URI={os.environ.get('MLFLOW_TRACKING_URI', self.cfg.mlflow_tracking_uri)}",
             f"BUILD_SHA={os.environ.get('BUILD_SHA') or model_ref.rsplit(':', 1)[-1]}",
         ]
+        # Since Lab 5 the training pipeline owns MODEL_VERSION (rollout_model, after the
+        # gate). A code deploy keeps whatever version is serving unless told otherwise;
+        # otherwise every push would silently roll staging back to an old model.
+        if os.environ.get("MODEL_VERSION"):
+            command.append(f"MODEL_VERSION={os.environ['MODEL_VERSION']}")
 
         result = subprocess.run(command, text=True, capture_output=True)
         if result.returncode != 0:
@@ -371,10 +375,17 @@ class AzureAdapter(CloudAdapter):
         )
         resources = json.loads(result.stdout)
 
+        # Some resources carry a lab's tags without belonging to it: the capstone's
+        # compute cluster was tagged lab=5 when it was created. TEARDOWN_KEEP in cloud.env
+        # lists names teardown must never delete, whatever their tags say.
+        import os
+
+        keep = {n.strip() for n in os.environ.get("TEARDOWN_KEEP", "").split(",") if n.strip()}
         matches = [
             resource
             for resource in resources
             if all((resource.get("tags") or {}).get(key) == value for key, value in tags.items())
+            and resource["name"].split("/")[-1] not in keep
         ]
 
         priority = {
@@ -402,6 +413,65 @@ class AzureAdapter(CloudAdapter):
             deleted.append(resource["name"])
 
         return deleted
+
+    # --- Lab 5 ---------------------------------------------------------------
+    ARM = "https://management.azure.com"
+    APPS_API = "2024-03-01"
+
+    def _arm(self, method: str, path: str, body: dict | None = None) -> dict:
+        """One Azure Resource Manager call as whoever DefaultAzureCredential resolves to.
+        In a pipeline step that is the managed identity named by AZURE_CLIENT_ID, so this
+        needs no `az` in the image and no stored secret."""
+        import json
+        import urllib.error
+        import urllib.request
+
+        from azure.identity import DefaultAzureCredential
+
+        token = DefaultAzureCredential().get_token(f"{self.ARM}/.default").token
+        sep = "&" if "?" in path else "?"
+        req = urllib.request.Request(
+            f"{self.ARM}{path}{sep}api-version={self.APPS_API}",
+            data=None if body is None else json.dumps(body).encode(),
+            method=method,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                raw = r.read()
+        except urllib.error.HTTPError as exc:
+            # 403 AuthorizationFailed names the exact action that was missing, which is
+            # what Lab 5 Task 2's remove-one-permission test needs to see.
+            raise RuntimeError(f"ARM {method} {path}: HTTP {exc.code} "
+                               f"{exc.read().decode(errors='replace')[:600]}") from None
+        return json.loads(raw) if raw else {}
+
+    def rollout_model(self, endpoint: str, version: str) -> tuple[str, str]:
+        """New revision of the Container App with MODEL_VERSION=version; same image."""
+        import os
+        import time
+
+        path = (f"/subscriptions/{os.environ['AZURE_SUBSCRIPTION_ID']}/resourceGroups/"
+                f"{self.cfg.project_id}/providers/Microsoft.App/containerApps/{endpoint}")
+        app = self._arm("GET", path)
+        template = app["properties"]["template"]
+        template.pop("revisionSuffix", None)  # a reused suffix would reject the new revision
+        env = template["containers"][0].setdefault("env", [])
+        previous = next((e.get("value") for e in env if e["name"] == "MODEL_VERSION"), None)
+        env[:] = [e for e in env if e["name"] != "MODEL_VERSION"]
+        env.append({"name": "MODEL_VERSION", "value": str(version)})
+
+        self._arm("PATCH", path, {"properties": {"template": template}})
+        deadline = time.time() + 300
+        while True:
+            state = self._arm("GET", path)["properties"].get("provisioningState")
+            if state == "Succeeded":
+                break
+            if state in ("Failed", "Canceled") or time.time() > deadline:
+                raise RuntimeError(f"Container App {endpoint} rollout ended {state}")
+            time.sleep(5)
+        fqdn = app["properties"]["configuration"]["ingress"]["fqdn"]
+        return f"https://{fqdn}", str(previous)
 
     # --- Lab 4 ---------------------------------------------------------------
     def emit_metric(self, name: str, value: float, unit: str = "None") -> None:

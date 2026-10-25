@@ -28,6 +28,10 @@ RUN mkdir -p /app/data/raw /app/mlruns /app/reports && chown -R runner:runner /a
 COPY --chown=runner:runner src/ ./src/
 COPY --chown=runner:runner cloudlayer/ ./cloudlayer/
 COPY --chown=runner:runner scripts/ ./scripts/
+# Lab 5: the pipeline's validate step runs the same data contract tests CI runs, against
+# the drift reference the serving image carries.
+COPY --chown=runner:runner tests/__init__.py tests/test_data.py ./tests/
+COPY --chown=runner:runner service/reference_profile.json ./service/
 
 USER runner
 
