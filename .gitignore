@@ -28,3 +28,4 @@ __pycache__/
 !reports/lab4-threshold.json
 data/current.csv
 monitoring/stack/targets/*.local.json
+.venv-win/
