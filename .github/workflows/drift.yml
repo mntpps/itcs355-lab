@@ -18,7 +18,10 @@ name: Drift check
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    # Every 15 minutes, offset from :00/:15/:30/:45 — the slots every other repository
+    # also picked, which GitHub delays or drops first under load. On 2026-10-24/25 the
+    # */15 schedule fired only 4 times in 9 hours (21:12, 23:15, 01:23, 06:29 UTC).
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
 
 permissions:
