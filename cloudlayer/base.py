@@ -72,8 +72,19 @@ class CloudAdapter(ABC):
         `params` carries the knobs worth exposing at the seam — `max_output_tokens`
         above all, since output tokens dominate the bill. Provider-specific options
         belong here in Layer 3, never in the caller.
+
+        Implemented once, here, for every adapter: LLM_PROVIDER=gemini routes to the
+        Gemini Developer API (cloudlayer/gemini.py). The model provider is chosen
+        independently of the cloud — on this project Azure hosts everything except the
+        model, which an Azure for Students subscription cannot deploy affordably.
         """
-        raise NotImplementedError("Lab 5")
+        import os
+
+        if os.environ.get("LLM_PROVIDER", "gemini").lower() == "gemini":
+            from cloudlayer import gemini
+
+            return gemini.generate(prompt, params)
+        raise NotImplementedError(f"no LLM provider {os.environ.get('LLM_PROVIDER')!r}")
 
     def teardown(self, tags: dict[str, str]) -> list[str]:
         """Delete every resource carrying these tags. Returns what was deleted.

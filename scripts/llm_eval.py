@@ -110,6 +110,10 @@ def score(golden: list[dict], responses: list[dict]) -> list[dict]:
             "failures": failures,
             "input_tokens": got.get("input_tokens", 0),
             "output_tokens": got.get("output_tokens", 0),
+            "cached_input_tokens": got.get("cached_input_tokens", 0),
+            "thinking_tokens": got.get("thinking_tokens", 0),
+            "finish_reason": got.get("finish_reason", ""),
+            "guard": got.get("guard", []),
             "latency_ms": got.get("latency_ms", 0),
         })
     return results
@@ -128,9 +132,11 @@ def summarise(results: list[dict], provider: str, model: str) -> dict:
     passed = sum(1 for r in results if r["passed"])
     in_tok = sum(r.get("input_tokens", 0) for r in results)
     out_tok = sum(r.get("output_tokens", 0) for r in results)
+    cached = sum(r.get("cached_input_tokens", 0) for r in results)
     avg = llmcost.Usage(
         input_tokens=round(in_tok / total) if total else 0,
         output_tokens=round(out_tok / total) if total else 0,
+        cached_input_tokens=min(round(cached / total), round(in_tok / total)) if total else 0,
     )
     return {
         "provider": provider,
@@ -141,6 +147,10 @@ def summarise(results: list[dict], provider: str, model: str) -> dict:
         "p95_latency_ms": percentile([r.get("latency_ms", 0) for r in results], 95),
         "avg_input_tokens": avg.input_tokens,
         "avg_output_tokens": avg.output_tokens,
+        "avg_cached_input_tokens": avg.cached_input_tokens,
+        "max_output_tokens_seen": max((r.get("output_tokens", 0) for r in results), default=0),
+        "cache_hit_rate": round(cached / in_tok, 4) if in_tok else 0.0,
+        "guard_fired": sorted({f for r in results for f in r.get("guard", [])}),
         "thb_per_1k_requests": round(llmcost.cost_per_1k_requests(provider, model, avg), 4),
         "results": results,
     }
@@ -176,8 +186,19 @@ def main() -> int:
                     help="recorded responses; omit and pass --live to call your adapter")
     ap.add_argument("--live", action="store_true",
                     help="generate responses through cloudlayer instead of a fixture")
-    ap.add_argument("--provider", default="gcp")
-    ap.add_argument("--model", default="small")
+    ap.add_argument("--provider", default="gcp",
+                    help="price table to cost the run with (gemini for live Gemini runs)")
+    ap.add_argument("--model", default="small",
+                    help="model name in the price table; with --live also the model called")
+    ap.add_argument("--prompt", default=None,
+                    help="system prompt version under src/prompts (v1, v2-short, v0-naive). "
+                         "Runs the work-order step: prompt + model + guard")
+    ap.add_argument("--no-guard", action="store_true", help="score the raw model output")
+    ap.add_argument("--max-output-tokens", type=int, default=1024)
+    ap.add_argument("--thinking", default=None, help="thinkingLevel, e.g. minimal or low")
+    ap.add_argument("--temperature", type=float, default=None)
+    ap.add_argument("--record", type=Path,
+                    help="with --live: also write the responses as a fixture for offline runs")
     ap.add_argument("--out", type=Path, default=ROOT / "reports" / "llm_eval.json")
     ap.add_argument("--baseline", type=Path,
                     help="a previous report; fail if any case regresses against it")
@@ -185,9 +206,15 @@ def main() -> int:
 
     golden = read_jsonl(args.golden)
     if args.live:
-        responses = generate_live(golden)
+        responses = generate_live(golden, args)
+        if args.record:
+            args.record.parent.mkdir(parents=True, exist_ok=True)
+            args.record.write_text("".join(json.dumps(r) + "\n" for r in responses))
+            print(f"recorded {shown(args.record)}")
     else:
         responses = read_jsonl(args.responses)
+        if args.no_guard:
+            responses = [{**r, "response": r.get("raw_response", r["response"])} for r in responses]
 
     report = summarise(score(golden, responses), args.provider, args.model)
 
@@ -212,23 +239,33 @@ def main() -> int:
     return 0
 
 
-def generate_live(golden: list[dict]) -> list[dict]:
-    """TODO(Lab 5): route each prompt through your adapter's `generate`.
+def generate_live(golden: list[dict], args) -> list[dict]:
+    """Route each prompt through the adapter's `generate` (Gemini on this project).
 
-    Record input_tokens, output_tokens and latency_ms from the provider's own usage
-    fields — do not estimate them by counting words. Every provider tokenises
-    differently, and an estimated token count in a cost report is a fabricated number.
+    Token counts come from the provider's usage fields via cloudlayer/gemini.py — never
+    from counting words. With --prompt, each case runs through the full work-order step
+    (system prompt + model + guard), and both the raw and the guarded reply are kept.
     """
-    from src import config
     from cloudlayer.factory import get_adapter
+    from src import config, workorder
 
-    adapter = get_adapter(config.load())
+    adapter = get_adapter(config.load(strict=False))
+    params = {"max_output_tokens": args.max_output_tokens, "model": args.model,
+              "thinking_level": args.thinking, "temperature": args.temperature}
+    if args.prompt:
+        params["system"] = workorder.system_prompt(args.prompt)
     rows = []
-    for case in golden:
-        result = adapter.generate(case["prompt"], {"max_output_tokens": 200})
+    for i, case in enumerate(golden, 1):
+        if args.prompt and not args.no_guard:
+            result = workorder.run(case["prompt"], adapter.generate, params)
+        else:
+            result = adapter.generate(case["prompt"], params)
+            result["raw_response"] = result["response"]
+        print(f"  {i:>2}/{len(golden)} {case['id']}  in={result['input_tokens']} "
+              f"out={result['output_tokens']} {result.get('finish_reason', '')}"
+              f"{'  guard=' + ','.join(result.get('guard', [])) if result.get('guard') else ''}")
         rows.append({"id": case["id"], **result})
     return rows
-
 
 if __name__ == "__main__":
     sys.exit(main())

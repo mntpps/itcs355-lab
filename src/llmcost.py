@@ -45,6 +45,16 @@ TOKEN_PRICE_TABLE: dict[str, dict[str, tuple[float, float]]] = {
         "medium": (105.0, 525.0),
         "large": (525.0, 2625.0),
     },
+    # Gemini Developer API, paid tier. Verified 2026-10-25 against
+    # https://ai.google.dev/gemini-api/docs/pricing at 33.76 THB/USD (23 Oct 2026):
+    #   gemini-3.5-flash-lite  $0.30 in / $2.50 out per 1M (thinking billed as output)
+    #   gemini-3.6-flash       $0.75 in / $3.75 out until 2026-12-31, then doubling
+    # This project runs on the FREE tier, so its actual LLM spend is 0 THB; these rates
+    # price the same traffic as if it were paid, which is what a budget holder needs.
+    "gemini": {
+        "gemini-3.5-flash-lite": (10.13, 84.41),
+        "gemini-3.6-flash": (25.32, 126.60),
+    },
 }
 
 # A cache hit is billed at this fraction of the normal input rate. Roughly right on all
@@ -55,6 +65,12 @@ CACHE_READ_FACTOR = 0.10
 # that changes every request is a way to pay extra for nothing, and it is a common and
 # expensive mistake.
 CACHE_WRITE_FACTOR = 1.25
+
+# Per-provider overrides. Gemini's IMPLICIT cache (on by default for 3.x models) has no
+# write surcharge: a miss costs exactly a normal input token, so any hit rate above zero
+# saves money. Its EXPLICIT cache is priced differently again — per hour of storage —
+# which this per-token model cannot express. Verified 2026-10-25, pricing page above.
+CACHE_WRITE_FACTORS: dict[str, float] = {"gemini": 1.0}
 
 
 @dataclass(frozen=True)
@@ -147,5 +163,5 @@ def cache_breakeven_hit_rate(provider: str, model: str, prefix_tokens: int) -> f
         raise ValueError("prefix_tokens must be positive")
     token_rates(provider, model)  # validate provider and model early
     saving_per_hit = 1.0 - CACHE_READ_FACTOR
-    extra_per_miss = CACHE_WRITE_FACTOR - 1.0
+    extra_per_miss = CACHE_WRITE_FACTORS.get(provider.lower(), CACHE_WRITE_FACTOR) - 1.0
     return extra_per_miss / (saving_per_hit + extra_per_miss)
