@@ -16,7 +16,7 @@ this repository and can be re-run with the command shown.
 | Error | `AssertionError: temp_c above plausible ceiling 140.0: 240.215` |
 | Also failed | `test_feature_distributions_match_training_reference`: `temp_c: mean 175.24 is 9.42 SD from the training reference 79.67 (limit 0.25)`, and `test_serving_reference_profile_is_current` (the data no longer matches the drift reference in the image) |
 
-Screenshots: `reports/lab4/blocked-pr.png` (the PR's checks: `test` failing, `build` skipped) and ‹fill: `reports/lab4/blocked-step.png`› (the failing step's log).
+Screenshots: `reports/lab4/blocked-pr.png` (the PR's checks: `test` failing, `build` skipped) and `reports/lab4/blocked-step.png` (the failing step's log).
 
 Reproduce locally: `git switch lab4-bad-contract && make data && make test-contract`.
 
@@ -31,9 +31,12 @@ Reproduce locally: `git switch lab4-bad-contract && make data && make test-contr
 
 ## 3. Dashboard (Task 4)
 
-`make monitor-up`, then pick `staging` in the target dropdown. Screenshots:
-‹fill: `reports/lab4/dashboard-baseline.png`› (before injection) and
-‹fill: `reports/lab4/dashboard-drift.png`› (after: the temp_c PSI line crosses the dashed 0.10, and the rolling mean leaves the reference).
+`docker compose -f monitoring/stack/docker-compose.yml up -d prometheus grafana`, then pick `staging` in the target dropdown. Screenshot: `reports/lab4/dashboard-drift.png` (last hour, 21:08–22:08 ICT). What it shows:
+
+- **The shift.** The `temp_c` PSI line crosses the dashed 0.10 line at about 21:34, a minute after the injection. It peaks near 0.55 while the window holds half normal and half shifted readings (a two-humped shape PSI punishes most), then settles at 0.42. The rolling mean moves from the reference, 79.7 °C, to 85.5 °C. Every other feature stays near zero.
+- **The window resetting on deploy.** The flat 0.42 line before 21:20 is the drifted window left over from the 17:12 injection. It vanishes at 21:20, when CD deployed `70573ca` and restarted the app, and that is the in-memory limitation the README describes.
+- **The smoke test.** The 33% 4xx spike at 21:20–21:25 is CD's three-payload smoke test, one of which is the deliberate Fahrenheit reading the schema rejects.
+- **Latency.** p95 stays around 21 ms, far inside the 200 ms target.
 
 All ten panel queries were checked against a real Prometheus 3.5 scraping the service: every one returns data.
 
@@ -53,7 +56,7 @@ make replay-drift TARGET_URL=https://<staging-fqdn>    # stamps reports/lab4-tim
 | Normal traffic fills the window | 21:30:02–21:33:10 (1,493 accepted, 7 deliberate 422s) |
 | Manual check on the normal window | 21:33:18, execution `itcs355-drift-v66ysd2`: **Succeeded** (no drift, no false alarm) |
 | Injection start (`reports/lab4-timeline.md`) | **21:33:28** (drifted replay finished 21:36:36) |
-| Dashboard PSI crosses 0.10 | ‹fill› |
+| Dashboard PSI crosses 0.10 | about **21:34**, about 1 min after injection (`reports/lab4/dashboard-drift.png`) |
 | First scheduled check after injection | 21:45:00, `itcs355-drift-29882325`: detected the drift (exit 2), but the job's webhook secret did not post to the channel, so no alert was received |
 | Scheduled check that alerted | **22:00:00**, `itcs355-drift-29882340`, after the webhook secret was corrected at 21:58 |
 | Alert received in Slack | **22:00:21**: `temp_c` PSI 0.420 ≥ 0.10, KS 0.268, mean 79.67 → 85.47 °C, schema clean; screenshot `reports/lab4/alert.png` |
@@ -76,4 +79,4 @@ On 500-reading windows (`make threshold-study`), the chosen rule catches `shift 
 
 ## 6. Teardown
 
-`make teardown && make cost-report` output: ‹fill›. Teardown deletes everything tagged `lab=4`: the drift job first, so nothing keeps calling a deleted endpoint, then the Container App and the CI/CD identity. Confirm `az containerapp job list -g itcs355-6688020 -o table` comes back empty.
+Teardown output (`make teardown && make cost-report`, or on Windows the adapter's `teardown(cfg.tags(4))` then `scripts/teardown_verify.py --lab 4`): ‹fill›. Teardown deletes everything tagged `lab=4`: the drift job first, so nothing keeps calling a deleted endpoint, then the Container App and the CI/CD identity. Confirm `az containerapp job list -g itcs355-6688020 -o table` comes back empty.
