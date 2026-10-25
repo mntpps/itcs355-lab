@@ -215,6 +215,20 @@ def main() -> int:
         responses = read_jsonl(args.responses)
         if args.no_guard:
             responses = [{**r, "response": r.get("raw_response", r["response"])} for r in responses]
+        elif any("raw_response" in r for r in responses):
+            # Fixtures record what the MODEL said. The guard is code under test, so it is
+            # re-applied to those raw replies on every run: change the guard, and the
+            # recorded failures replay against the new version with no API calls.
+            from src import workorder
+
+            lines = {c["id"]: c["prompt"] for c in golden}
+            regarded = []
+            for r in responses:
+                if "raw_response" in r and r["id"] in lines:
+                    final, flags = workorder.guard(r["raw_response"], lines[r["id"]])
+                    r = {**r, "response": final, "guard": flags}
+                regarded.append(r)
+            responses = regarded
 
     report = summarise(score(golden, responses), args.provider, args.model)
 

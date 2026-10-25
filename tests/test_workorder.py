@@ -71,3 +71,10 @@ def test_golden_set_covers_the_required_kinds():
     for kind in ("grounding", "guardrail", "injection", "insufficient input"):
         assert kind in notes, f"golden set has no {kind} case"
     assert len({c["id"] for c in cases}) == len(cases)
+
+
+def test_a_fahrenheit_reading_is_never_decided_on():
+    line = "machine_id=M-114 failure_probability=0.35 temp_c=176.0"
+    final, flags = workorder.guard(reply("no_action"), line)
+    assert json.loads(final)["decision"] == "cannot_decide"
+    assert flags == ["implausible_reading"]

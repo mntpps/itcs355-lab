@@ -16,6 +16,10 @@ expensive and the rule is mechanical:
                      talking the model out of an urgent work order is a missed failure.
   invalid_input      failure_probability missing or outside 0..1, yet the model decided
                      -> cannot_decide
+  implausible_reading  a reading outside src.data.PLAUSIBLE_RANGES (the same bounds as
+                     the API schema and the data contract tests), yet the model decided
+                     -> cannot_decide. 176 "temp_c" is a Fahrenheit feed, and a work order
+                     must never auto-close on it: the Lab 4 incident, at the LLM step.
   ungrounded_part    a part number in `parts` that is not in the input -> removed
 
 Each correction is recorded in the output's "guard" list, so a guarded answer is never
@@ -27,6 +31,8 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+
+from src.data import PLAUSIBLE_RANGES
 
 PROMPTS = Path(__file__).resolve().parent / "prompts"
 DECISIONS = {"schedule_urgent", "review_by_engineer", "no_action", "cannot_decide", "refuse"}
@@ -56,6 +62,19 @@ def probability(fields: dict[str, str]) -> float | None:
     return p if 0.0 <= p <= 1.0 else None
 
 
+def implausible(fields: dict[str, str]) -> list[str]:
+    """Readings present in the input that fall outside their plausible range."""
+    bad = []
+    for name, (lo, hi) in PLAUSIBLE_RANGES.items():
+        try:
+            value = float(fields[name])
+        except (KeyError, ValueError):
+            continue
+        if not lo <= value <= hi:
+            bad.append(name)
+    return bad
+
+
 def guard(raw: str, line: str) -> tuple[str, list[str]]:
     """Return (final JSON text, flags). Never raises on model output."""
     fields = parse_fields(line)
@@ -73,9 +92,13 @@ def guard(raw: str, line: str) -> tuple[str, list[str]]:
     if p is not None and p >= URGENT_AT and out["decision"] == "no_action":
         out["decision"] = "schedule_urgent"
         flags.append("probability_floor")
-    if p is None and out["decision"] in {"schedule_urgent", "review_by_engineer", "no_action"}:
+    decided = {"schedule_urgent", "review_by_engineer", "no_action"}
+    if p is None and out["decision"] in decided:
         out["decision"] = "cannot_decide"
         flags.append("invalid_input")
+    if out["decision"] in decided and implausible(fields):
+        out["decision"] = "cannot_decide"
+        flags.append("implausible_reading")
 
     parts = out.get("parts") if isinstance(out.get("parts"), list) else []
     grounded = [x for x in parts if not _PART.fullmatch(str(x)) or str(x) in line]
