@@ -27,6 +27,7 @@ __pycache__/
 # Lab 4
 !reports/lab4-threshold.json
 !reports/lab5-gate.json
+!reports/lab5-retrain-triggers.json
 data/current.csv
 monitoring/stack/targets/*.local.json
 .venv-win/
