@@ -274,20 +274,32 @@ flowchart LR
 
 ### The evaluation gate, and why these numbers
 
-The gate scores the candidate **and** the production model on the same held-out machines, the candidate's test split of this batch. With only 48 test machines, ROC-AUC on a new batch swings by ±0.02 just from which machines are drawn. Comparing against the 0.8482 the incumbent logged on a different test set would mostly measure the draw. On the same machines, a no-change retrain's delta has a standard deviation of 0.007.
+The gate scores the candidate **and** the production model on the same held-out machines, the candidate's test split of this batch. With only 48 test machines, ROC-AUC on a new batch swings by ±0.02 just from which machines are drawn. Comparing against the 0.8533 that v2 logged on a different test set would mostly measure the draw. On the same machines, a no-change retrain's delta has a standard deviation of 0.006.
 
-`make gate-study` retrains the production recipe on 100 fresh batches, a case where no real improvement exists, and measures the paired delta ([`reports/lab5-gate.json`](reports/lab5-gate.json)):
+`make gate-study` retrains production's own recipe on 100 fresh batches, a case where no real improvement exists, and measures the paired delta ([`reports/lab5-gate.json`](reports/lab5-gate.json)). The study rebuilds v2 exactly: 100 trees, depth 4, Lab 2's choice. Its scores match what the live gate measured for v2 on weeks 43 and 44 to four decimals.
 
-| `MIN_IMPROVEMENT` | No-change retrains promoted | Real improvement (logistic regression, +0.013 on average) promoted |
+| `MIN_IMPROVEMENT` | No-change retrains promoted: v2's forest / v3's logistic regression | Real improvement (logistic regression over v2, +0.012 on average) promoted |
 |---|---|---|
-| 0.002 (scaffold) | 46% | 94% |
-| 0.005 | 28% | 89% |
-| **0.010 (chosen)** | **9%** | **69%** |
-| 0.015 | 1% | 38% |
+| 0.002 (scaffold) | 46% / 9% | 97% |
+| 0.005 | 22% / 0% | 83% |
+| **0.010 (chosen)** | **4% / 0%** | **63%** |
+| 0.015 | 0% / 0% | 30% |
 
-**Choosing 0.010.** At 0.002 the gate is a coin flip on noise. At 0.010 about five no-change retrains a year get through on a weekly schedule, and each one swaps in a model statistically equal to the one it replaces. That costs a deploy, not a regression. A real improvement gets another chance every week, so at 0.010 it ships within four weeks 99% of the time. At 0.015 that drops to 85%, for a noise rate that was already harmless.
+**Choosing 0.010.** At 0.002 the gate is a coin flip on noise. At 0.010 about two no-change retrains a year get through on a weekly schedule while the forest is in production, and none while the logistic regression is. Each one would swap in a model statistically equal to the one it replaces. That costs a deploy, not a regression. A real improvement gets another chance every week, so at 0.010 it ships within four weeks 98% of the time. At 0.015 that drops to 76%, for a noise rate that was already harmless.
 
-There are two floors as well. A candidate must score **≥ 0.78**: the production recipe never scored below 0.79 on any of the 100 batches, and a degraded recipe never passed. It must also **beat the best single sensor** on the same machines. Ranking by vibration alone scores 0.81, and the production random forest beats that by only 0.03 on average.
+There are two floors as well. A candidate must score **≥ 0.78**: v2's recipe never scored below 0.79 on any of the 100 batches, and a degraded recipe never passed. It must also **beat the best single sensor** on the same machines. Ranking by vibration alone scores 0.81, and v2's forest beats that by only 0.03 on average.
+
+### The runs (Task 1 evidence)
+
+All four ran on the `itcs355-lab5-cpu` cluster on 26 October 2026; screenshots are in `reports/lab5/`.
+
+| Run | Data | Candidate | What happened |
+|---|---|---|---|
+| 1 | week 43 batch | random forest (the training script's default: 200 trees, depth 8) | gate **fail**: 0.8263 vs v2's 0.8224 on the same machines, gain +0.0039 < 0.010. Register and deploy logged "skipped". `pipeline-gate-fail.png` |
+| 2 | week 44, `fault=fahrenheit` | — | **aborted at validate**: `temp_c above plausible ceiling 140.0: 231.008`, mean 9.28 SD from the reference. Train never started. `pipeline-contract-abort.png` |
+| 3 | week 44 | logistic regression | gate **pass**: 0.8307 vs v2's 0.8123, gain +0.0184. Registered **v3**, `role=production`, v2 retired. deploy_staging rolled staging to v3, and the smoke test passed 3/3 with `/ready` reporting `model_version: 3`. `pipeline-gate-pass.png` |
+
+Run 1 trained on week 43 because it was submitted at 01:15 Bangkok time, still Sunday in UTC, and the ingest step's week is a UTC week. Getting to run 3 took three failed attempts at the register step, about 1 THB each, and each failure is now covered by a test. MLflow 3's `register_model` and `list_artifacts` both query a "logged models" API that Azure ML does not have (HTTP 404), and Azure's artifact listing takes different arguments from MLflow's own. Register now creates the version directly from the run's artifact location. If the registry refuses that, it uploads the train step's model folder instead.
 
 ---
 

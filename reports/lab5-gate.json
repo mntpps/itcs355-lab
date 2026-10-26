@@ -1,881 +1,995 @@
 {
   "batches": 100,
-  "incumbent_logged_test_roc_auc": 0.8482,
+  "incumbent_logged_test_roc_auc": 0.8533,
   "thresholds": {
     "MIN_ABSOLUTE": 0.78,
     "MIN_IMPROVEMENT": 0.01
   },
   "null_delta": {
-    "mean": 0.0014,
-    "sd": 0.0067,
-    "p90": 0.0096,
-    "p95": 0.0126,
-    "p99": 0.0147,
-    "max": 0.0177,
+    "mean": 0.0013,
+    "sd": 0.0057,
+    "p90": 0.0082,
+    "p95": 0.0095,
+    "p99": 0.0128,
+    "max": 0.0139,
     "share_at_least_0.002": 0.46
   },
+  "null_delta_logreg": {
+    "mean": -0.0005,
+    "sd": 0.002,
+    "p90": 0.0019,
+    "p95": 0.0022,
+    "max": 0.0044
+  },
   "unpaired_delta_vs_logged": {
-    "sd": 0.0189,
-    "min": -0.0553,
-    "max": 0.0355
+    "sd": 0.0187,
+    "min": -0.0613,
+    "max": 0.0312
   },
   "same_recipe_auc": {
-    "min": 0.793,
-    "p5": 0.8029,
-    "mean": 0.8421
+    "min": 0.7919,
+    "p5": 0.8049,
+    "mean": 0.8436
   },
   "best_single_feature_auc": {
     "mean": 0.8135,
     "max": 0.8573
   },
-  "margin_over_single_feature_same_recipe_min": -0.0081,
+  "margin_over_single_feature_same_recipe_min": -0.0061,
   "logreg_delta": {
-    "mean": 0.0133,
-    "min": 0.0,
-    "max": 0.0301
+    "mean": 0.0116,
+    "min": -0.0051,
+    "max": 0.0278
   },
   "degraded_delta": {
-    "mean": -0.0682,
-    "max": -0.0148
+    "mean": -0.0698,
+    "max": -0.0188
   },
   "pass_rate": {
-    "null (false promotion)": 0.09,
-    "logreg (power)": 0.69,
+    "null (false promotion)": 0.04,
+    "null, logreg retrained vs logreg (false promotion)": 0.0,
+    "logreg (power)": 0.63,
     "degraded (must be 0)": 0.0
   },
   "margin_sweep": [
     {
       "min_improvement": 0.002,
       "null_pass": 0.46,
-      "logreg_pass": 0.94
+      "null_logreg_pass": 0.09,
+      "logreg_pass": 0.97
     },
     {
       "min_improvement": 0.005,
-      "null_pass": 0.28,
-      "logreg_pass": 0.89
+      "null_pass": 0.22,
+      "null_logreg_pass": 0.0,
+      "logreg_pass": 0.83
     },
     {
       "min_improvement": 0.0075,
-      "null_pass": 0.18,
-      "logreg_pass": 0.81
+      "null_pass": 0.13,
+      "null_logreg_pass": 0.0,
+      "logreg_pass": 0.73
     },
     {
       "min_improvement": 0.01,
-      "null_pass": 0.09,
-      "logreg_pass": 0.69
+      "null_pass": 0.04,
+      "null_logreg_pass": 0.0,
+      "logreg_pass": 0.63
     },
     {
       "min_improvement": 0.0125,
-      "null_pass": 0.06,
-      "logreg_pass": 0.53
+      "null_pass": 0.03,
+      "null_logreg_pass": 0.0,
+      "logreg_pass": 0.45
     },
     {
       "min_improvement": 0.015,
-      "null_pass": 0.01,
-      "logreg_pass": 0.38
+      "null_pass": 0.0,
+      "null_logreg_pass": 0.0,
+      "logreg_pass": 0.3
     }
   ],
   "same_recipe_below_single_feature": 0.01,
-  "runtime_s": 93.6,
+  "runtime_s": 59.5,
   "per_batch": [
     {
       "batch_seed": 20260102,
-      "incumbent": 0.8047,
-      "same_recipe": 0.8061,
+      "incumbent": 0.8126,
+      "same_recipe": 0.8081,
       "logreg": 0.8278,
       "degraded": 0.7476,
+      "logreg_incumbent": 0.8257,
       "best_single_feature": 0.8142
     },
     {
       "batch_seed": 20260103,
-      "incumbent": 0.847,
-      "same_recipe": 0.8527,
+      "incumbent": 0.8503,
+      "same_recipe": 0.8511,
       "logreg": 0.8605,
       "degraded": 0.8127,
+      "logreg_incumbent": 0.8586,
       "best_single_feature": 0.8047
     },
     {
       "batch_seed": 20260104,
-      "incumbent": 0.8531,
-      "same_recipe": 0.8527,
+      "incumbent": 0.8524,
+      "same_recipe": 0.8548,
       "logreg": 0.8636,
       "degraded": 0.8042,
+      "logreg_incumbent": 0.8636,
       "best_single_feature": 0.8222
     },
     {
       "batch_seed": 20260105,
-      "incumbent": 0.8393,
-      "same_recipe": 0.8432,
+      "incumbent": 0.8405,
+      "same_recipe": 0.8442,
       "logreg": 0.8507,
       "degraded": 0.7181,
+      "logreg_incumbent": 0.8561,
       "best_single_feature": 0.7945
     },
     {
       "batch_seed": 20260106,
-      "incumbent": 0.841,
-      "same_recipe": 0.8398,
+      "incumbent": 0.8428,
+      "same_recipe": 0.8399,
       "logreg": 0.8495,
       "degraded": 0.769,
+      "logreg_incumbent": 0.8451,
       "best_single_feature": 0.8117
     },
     {
       "batch_seed": 20260107,
-      "incumbent": 0.8438,
-      "same_recipe": 0.8388,
+      "incumbent": 0.8396,
+      "same_recipe": 0.8362,
       "logreg": 0.8446,
       "degraded": 0.7912,
+      "logreg_incumbent": 0.849,
       "best_single_feature": 0.7943
     },
     {
       "batch_seed": 20260108,
-      "incumbent": 0.8366,
-      "same_recipe": 0.8352,
+      "incumbent": 0.831,
+      "same_recipe": 0.831,
       "logreg": 0.8443,
       "degraded": 0.7525,
+      "logreg_incumbent": 0.8445,
       "best_single_feature": 0.8107
     },
     {
       "batch_seed": 20260109,
-      "incumbent": 0.8252,
+      "incumbent": 0.8233,
       "same_recipe": 0.8195,
       "logreg": 0.8353,
       "degraded": 0.7625,
+      "logreg_incumbent": 0.8385,
       "best_single_feature": 0.7751
     },
     {
       "batch_seed": 20260110,
-      "incumbent": 0.849,
-      "same_recipe": 0.8373,
+      "incumbent": 0.8532,
+      "same_recipe": 0.8395,
       "logreg": 0.85,
       "degraded": 0.7106,
+      "logreg_incumbent": 0.8537,
       "best_single_feature": 0.8039
     },
     {
       "batch_seed": 20260111,
-      "incumbent": 0.8396,
-      "same_recipe": 0.8481,
+      "incumbent": 0.8451,
+      "same_recipe": 0.8529,
       "logreg": 0.8567,
       "degraded": 0.7781,
+      "logreg_incumbent": 0.8572,
       "best_single_feature": 0.8211
     },
     {
       "batch_seed": 20260112,
-      "incumbent": 0.859,
-      "same_recipe": 0.8437,
+      "incumbent": 0.8592,
+      "same_recipe": 0.8453,
       "logreg": 0.8618,
       "degraded": 0.7374,
+      "logreg_incumbent": 0.864,
       "best_single_feature": 0.8395
     },
     {
       "batch_seed": 20260113,
-      "incumbent": 0.8196,
-      "same_recipe": 0.8174,
+      "incumbent": 0.8258,
+      "same_recipe": 0.8276,
       "logreg": 0.8316,
       "degraded": 0.7587,
+      "logreg_incumbent": 0.8327,
       "best_single_feature": 0.7884
     },
     {
       "batch_seed": 20260114,
-      "incumbent": 0.8482,
-      "same_recipe": 0.8516,
+      "incumbent": 0.8585,
+      "same_recipe": 0.8595,
       "logreg": 0.8578,
       "degraded": 0.8036,
+      "logreg_incumbent": 0.8596,
       "best_single_feature": 0.841
     },
     {
       "batch_seed": 20260115,
-      "incumbent": 0.7964,
-      "same_recipe": 0.7964,
+      "incumbent": 0.802,
+      "same_recipe": 0.801,
       "logreg": 0.8211,
       "degraded": 0.7703,
+      "logreg_incumbent": 0.8235,
       "best_single_feature": 0.7822
     },
     {
       "batch_seed": 20260116,
-      "incumbent": 0.8095,
-      "same_recipe": 0.8052,
+      "incumbent": 0.8046,
+      "same_recipe": 0.8051,
       "logreg": 0.8318,
       "degraded": 0.7277,
+      "logreg_incumbent": 0.8314,
       "best_single_feature": 0.7994
     },
     {
       "batch_seed": 20260117,
-      "incumbent": 0.8297,
-      "same_recipe": 0.8284,
+      "incumbent": 0.832,
+      "same_recipe": 0.8281,
       "logreg": 0.8432,
       "degraded": 0.7685,
+      "logreg_incumbent": 0.8481,
       "best_single_feature": 0.7948
     },
     {
       "batch_seed": 20260118,
-      "incumbent": 0.7932,
-      "same_recipe": 0.7994,
+      "incumbent": 0.7947,
+      "same_recipe": 0.8015,
       "logreg": 0.8096,
       "degraded": 0.6799,
+      "logreg_incumbent": 0.8138,
       "best_single_feature": 0.7816
     },
     {
       "batch_seed": 20260119,
       "incumbent": 0.8713,
-      "same_recipe": 0.8665,
+      "same_recipe": 0.8687,
       "logreg": 0.881,
       "degraded": 0.7952,
+      "logreg_incumbent": 0.8791,
       "best_single_feature": 0.8479
     },
     {
       "batch_seed": 20260120,
-      "incumbent": 0.8439,
-      "same_recipe": 0.8487,
+      "incumbent": 0.8502,
+      "same_recipe": 0.8538,
       "logreg": 0.8635,
       "degraded": 0.7831,
+      "logreg_incumbent": 0.8639,
       "best_single_feature": 0.8113
     },
     {
       "batch_seed": 20260121,
-      "incumbent": 0.8169,
-      "same_recipe": 0.8252,
+      "incumbent": 0.8239,
+      "same_recipe": 0.8366,
       "logreg": 0.8376,
       "degraded": 0.7499,
+      "logreg_incumbent": 0.8389,
       "best_single_feature": 0.8094
     },
     {
       "batch_seed": 20260122,
       "incumbent": 0.823,
-      "same_recipe": 0.8253,
+      "same_recipe": 0.8288,
       "logreg": 0.8419,
       "degraded": 0.7483,
+      "logreg_incumbent": 0.8432,
       "best_single_feature": 0.7882
     },
     {
       "batch_seed": 20260123,
-      "incumbent": 0.8503,
-      "same_recipe": 0.8511,
+      "incumbent": 0.8559,
+      "same_recipe": 0.8584,
       "logreg": 0.8641,
       "degraded": 0.7917,
+      "logreg_incumbent": 0.8637,
       "best_single_feature": 0.8355
     },
     {
       "batch_seed": 20260124,
-      "incumbent": 0.8337,
-      "same_recipe": 0.8372,
+      "incumbent": 0.8355,
+      "same_recipe": 0.8331,
       "logreg": 0.8467,
       "degraded": 0.7948,
+      "logreg_incumbent": 0.8491,
       "best_single_feature": 0.8031
     },
     {
       "batch_seed": 20260125,
-      "incumbent": 0.8159,
-      "same_recipe": 0.8274,
+      "incumbent": 0.8189,
+      "same_recipe": 0.8281,
       "logreg": 0.8356,
       "degraded": 0.7711,
+      "logreg_incumbent": 0.838,
       "best_single_feature": 0.793
     },
     {
       "batch_seed": 20260126,
-      "incumbent": 0.8462,
-      "same_recipe": 0.8602,
+      "incumbent": 0.851,
+      "same_recipe": 0.8613,
       "logreg": 0.866,
       "degraded": 0.7132,
+      "logreg_incumbent": 0.8655,
       "best_single_feature": 0.8226
     },
     {
       "batch_seed": 20260127,
-      "incumbent": 0.8209,
-      "same_recipe": 0.8302,
+      "incumbent": 0.8314,
+      "same_recipe": 0.8357,
       "logreg": 0.8426,
       "degraded": 0.7918,
+      "logreg_incumbent": 0.8406,
       "best_single_feature": 0.8135
     },
     {
       "batch_seed": 20260128,
-      "incumbent": 0.8567,
-      "same_recipe": 0.8653,
+      "incumbent": 0.8604,
+      "same_recipe": 0.8567,
       "logreg": 0.8726,
       "degraded": 0.7679,
+      "logreg_incumbent": 0.8729,
       "best_single_feature": 0.8014
     },
     {
       "batch_seed": 20260129,
-      "incumbent": 0.8587,
-      "same_recipe": 0.8649,
+      "incumbent": 0.859,
+      "same_recipe": 0.8637,
       "logreg": 0.8728,
       "degraded": 0.8131,
+      "logreg_incumbent": 0.8727,
       "best_single_feature": 0.8378
     },
     {
       "batch_seed": 20260130,
-      "incumbent": 0.8607,
-      "same_recipe": 0.8625,
+      "incumbent": 0.8647,
+      "same_recipe": 0.8684,
       "logreg": 0.88,
       "degraded": 0.846,
+      "logreg_incumbent": 0.88,
       "best_single_feature": 0.8408
     },
     {
       "batch_seed": 20260131,
-      "incumbent": 0.8263,
-      "same_recipe": 0.8358,
+      "incumbent": 0.828,
+      "same_recipe": 0.8354,
       "logreg": 0.8559,
       "degraded": 0.7683,
+      "logreg_incumbent": 0.8545,
       "best_single_feature": 0.7991
     },
     {
       "batch_seed": 20260132,
-      "incumbent": 0.8377,
-      "same_recipe": 0.8343,
+      "incumbent": 0.8405,
+      "same_recipe": 0.8358,
       "logreg": 0.847,
       "degraded": 0.7702,
+      "logreg_incumbent": 0.8489,
       "best_single_feature": 0.8339
     },
     {
       "batch_seed": 20260133,
-      "incumbent": 0.8234,
-      "same_recipe": 0.8281,
+      "incumbent": 0.826,
+      "same_recipe": 0.8309,
       "logreg": 0.8437,
       "degraded": 0.7737,
+      "logreg_incumbent": 0.8407,
       "best_single_feature": 0.8177
     },
     {
       "batch_seed": 20260134,
-      "incumbent": 0.821,
-      "same_recipe": 0.8172,
+      "incumbent": 0.8137,
+      "same_recipe": 0.8159,
       "logreg": 0.8249,
       "degraded": 0.7446,
+      "logreg_incumbent": 0.8233,
       "best_single_feature": 0.781
     },
     {
       "batch_seed": 20260135,
-      "incumbent": 0.7957,
-      "same_recipe": 0.7969,
+      "incumbent": 0.7923,
+      "same_recipe": 0.7995,
       "logreg": 0.8104,
       "degraded": 0.7381,
+      "logreg_incumbent": 0.8126,
       "best_single_feature": 0.7633
     },
     {
       "batch_seed": 20260136,
-      "incumbent": 0.8628,
-      "same_recipe": 0.8568,
+      "incumbent": 0.8605,
+      "same_recipe": 0.859,
       "logreg": 0.8663,
       "degraded": 0.7713,
+      "logreg_incumbent": 0.8667,
       "best_single_feature": 0.8171
     },
     {
       "batch_seed": 20260137,
-      "incumbent": 0.8507,
-      "same_recipe": 0.8521,
+      "incumbent": 0.8545,
+      "same_recipe": 0.8531,
       "logreg": 0.8666,
       "degraded": 0.8045,
+      "logreg_incumbent": 0.8651,
       "best_single_feature": 0.8052
     },
     {
       "batch_seed": 20260138,
-      "incumbent": 0.8313,
-      "same_recipe": 0.8188,
+      "incumbent": 0.8278,
+      "same_recipe": 0.8196,
       "logreg": 0.8323,
       "degraded": 0.7504,
+      "logreg_incumbent": 0.8334,
       "best_single_feature": 0.8131
     },
     {
       "batch_seed": 20260139,
-      "incumbent": 0.8032,
-      "same_recipe": 0.8173,
+      "incumbent": 0.8049,
+      "same_recipe": 0.8188,
       "logreg": 0.822,
       "degraded": 0.7361,
+      "logreg_incumbent": 0.8247,
       "best_single_feature": 0.7716
     },
     {
       "batch_seed": 20260140,
-      "incumbent": 0.8502,
-      "same_recipe": 0.8422,
+      "incumbent": 0.8511,
+      "same_recipe": 0.8468,
       "logreg": 0.8609,
       "degraded": 0.8217,
+      "logreg_incumbent": 0.8646,
       "best_single_feature": 0.8255
     },
     {
       "batch_seed": 20260141,
-      "incumbent": 0.8403,
-      "same_recipe": 0.845,
+      "incumbent": 0.84,
+      "same_recipe": 0.8426,
       "logreg": 0.857,
       "degraded": 0.7849,
+      "logreg_incumbent": 0.8571,
       "best_single_feature": 0.8076
     },
     {
       "batch_seed": 20260142,
-      "incumbent": 0.841,
-      "same_recipe": 0.8351,
+      "incumbent": 0.8423,
+      "same_recipe": 0.8355,
       "logreg": 0.8534,
       "degraded": 0.7728,
+      "logreg_incumbent": 0.8542,
       "best_single_feature": 0.7951
     },
     {
       "batch_seed": 20260143,
-      "incumbent": 0.8536,
-      "same_recipe": 0.8619,
+      "incumbent": 0.8572,
+      "same_recipe": 0.8651,
       "logreg": 0.8622,
       "degraded": 0.808,
+      "logreg_incumbent": 0.8622,
       "best_single_feature": 0.8252
     },
     {
       "batch_seed": 20260144,
-      "incumbent": 0.8491,
-      "same_recipe": 0.8557,
+      "incumbent": 0.8516,
+      "same_recipe": 0.8552,
       "logreg": 0.8678,
       "degraded": 0.784,
+      "logreg_incumbent": 0.8676,
       "best_single_feature": 0.8253
     },
     {
       "batch_seed": 20260145,
-      "incumbent": 0.8316,
-      "same_recipe": 0.8321,
+      "incumbent": 0.8331,
+      "same_recipe": 0.8349,
       "logreg": 0.8459,
       "degraded": 0.7141,
+      "logreg_incumbent": 0.8446,
       "best_single_feature": 0.8101
     },
     {
       "batch_seed": 20260146,
-      "incumbent": 0.8146,
-      "same_recipe": 0.796,
+      "incumbent": 0.8099,
+      "same_recipe": 0.7928,
       "logreg": 0.8147,
       "degraded": 0.718,
+      "logreg_incumbent": 0.8154,
       "best_single_feature": 0.7692
     },
     {
       "batch_seed": 20260147,
-      "incumbent": 0.8681,
-      "same_recipe": 0.8606,
+      "incumbent": 0.8673,
+      "same_recipe": 0.8675,
       "logreg": 0.8776,
       "degraded": 0.7365,
+      "logreg_incumbent": 0.8777,
       "best_single_feature": 0.8415
     },
     {
       "batch_seed": 20260148,
-      "incumbent": 0.8397,
-      "same_recipe": 0.8441,
+      "incumbent": 0.8428,
+      "same_recipe": 0.8458,
       "logreg": 0.8595,
       "degraded": 0.7699,
+      "logreg_incumbent": 0.86,
       "best_single_feature": 0.8203
     },
     {
       "batch_seed": 20260149,
-      "incumbent": 0.8151,
-      "same_recipe": 0.8164,
+      "incumbent": 0.8173,
+      "same_recipe": 0.8237,
       "logreg": 0.8288,
       "degraded": 0.765,
+      "logreg_incumbent": 0.8288,
       "best_single_feature": 0.7883
     },
     {
       "batch_seed": 20260150,
-      "incumbent": 0.8514,
-      "same_recipe": 0.8584,
+      "incumbent": 0.8527,
+      "same_recipe": 0.8524,
       "logreg": 0.8565,
       "degraded": 0.7762,
+      "logreg_incumbent": 0.8597,
       "best_single_feature": 0.8032
     },
     {
       "batch_seed": 20260151,
-      "incumbent": 0.8408,
-      "same_recipe": 0.8459,
+      "incumbent": 0.8461,
+      "same_recipe": 0.844,
       "logreg": 0.8501,
       "degraded": 0.6542,
+      "logreg_incumbent": 0.8557,
       "best_single_feature": 0.8227
     },
     {
       "batch_seed": 20260152,
-      "incumbent": 0.8524,
-      "same_recipe": 0.854,
+      "incumbent": 0.8506,
+      "same_recipe": 0.8533,
       "logreg": 0.8638,
       "degraded": 0.8233,
+      "logreg_incumbent": 0.8632,
       "best_single_feature": 0.8323
     },
     {
       "batch_seed": 20260153,
-      "incumbent": 0.8517,
-      "same_recipe": 0.8478,
+      "incumbent": 0.8493,
+      "same_recipe": 0.8466,
       "logreg": 0.8527,
       "degraded": 0.7799,
+      "logreg_incumbent": 0.8541,
       "best_single_feature": 0.8085
     },
     {
       "batch_seed": 20260154,
-      "incumbent": 0.8512,
-      "same_recipe": 0.8634,
+      "incumbent": 0.8567,
+      "same_recipe": 0.8584,
       "logreg": 0.8698,
       "degraded": 0.7874,
+      "logreg_incumbent": 0.8698,
       "best_single_feature": 0.8271
     },
     {
       "batch_seed": 20260155,
-      "incumbent": 0.8295,
-      "same_recipe": 0.8273,
+      "incumbent": 0.8362,
+      "same_recipe": 0.83,
       "logreg": 0.8553,
       "degraded": 0.765,
+      "logreg_incumbent": 0.8573,
       "best_single_feature": 0.8072
     },
     {
       "batch_seed": 20260156,
-      "incumbent": 0.8417,
-      "same_recipe": 0.8514,
+      "incumbent": 0.8476,
+      "same_recipe": 0.8496,
       "logreg": 0.8549,
       "degraded": 0.7925,
+      "logreg_incumbent": 0.8546,
       "best_single_feature": 0.82
     },
     {
       "batch_seed": 20260157,
-      "incumbent": 0.8441,
-      "same_recipe": 0.8377,
+      "incumbent": 0.8503,
+      "same_recipe": 0.8417,
       "logreg": 0.853,
       "degraded": 0.795,
+      "logreg_incumbent": 0.8522,
       "best_single_feature": 0.8127
     },
     {
       "batch_seed": 20260158,
-      "incumbent": 0.8321,
-      "same_recipe": 0.8417,
+      "incumbent": 0.8288,
+      "same_recipe": 0.8388,
       "logreg": 0.8505,
       "degraded": 0.7577,
+      "logreg_incumbent": 0.851,
       "best_single_feature": 0.7983
     },
     {
       "batch_seed": 20260159,
-      "incumbent": 0.8381,
-      "same_recipe": 0.8401,
+      "incumbent": 0.8384,
+      "same_recipe": 0.8404,
       "logreg": 0.8498,
       "degraded": 0.7699,
+      "logreg_incumbent": 0.8521,
       "best_single_feature": 0.8237
     },
     {
       "batch_seed": 20260160,
-      "incumbent": 0.8561,
-      "same_recipe": 0.8524,
+      "incumbent": 0.8586,
+      "same_recipe": 0.8595,
       "logreg": 0.8623,
       "degraded": 0.7955,
+      "logreg_incumbent": 0.8621,
       "best_single_feature": 0.8201
     },
     {
       "batch_seed": 20260161,
-      "incumbent": 0.8092,
-      "same_recipe": 0.803,
+      "incumbent": 0.8106,
+      "same_recipe": 0.8098,
       "logreg": 0.8257,
       "degraded": 0.6755,
+      "logreg_incumbent": 0.8251,
       "best_single_feature": 0.7998
     },
     {
       "batch_seed": 20260162,
-      "incumbent": 0.8267,
-      "same_recipe": 0.8267,
+      "incumbent": 0.821,
+      "same_recipe": 0.826,
       "logreg": 0.8398,
       "degraded": 0.7743,
+      "logreg_incumbent": 0.845,
       "best_single_feature": 0.8152
     },
     {
       "batch_seed": 20260163,
-      "incumbent": 0.8546,
-      "same_recipe": 0.8531,
+      "incumbent": 0.8541,
+      "same_recipe": 0.8538,
       "logreg": 0.8666,
       "degraded": 0.7994,
+      "logreg_incumbent": 0.8645,
       "best_single_feature": 0.8315
     },
     {
       "batch_seed": 20260164,
-      "incumbent": 0.8606,
-      "same_recipe": 0.8628,
+      "incumbent": 0.8608,
+      "same_recipe": 0.8644,
       "logreg": 0.8776,
       "degraded": 0.8028,
+      "logreg_incumbent": 0.8786,
       "best_single_feature": 0.8179
     },
     {
       "batch_seed": 20260165,
-      "incumbent": 0.8356,
-      "same_recipe": 0.8491,
+      "incumbent": 0.8439,
+      "same_recipe": 0.846,
       "logreg": 0.8569,
       "degraded": 0.7748,
+      "logreg_incumbent": 0.859,
       "best_single_feature": 0.8349
     },
     {
       "batch_seed": 20260166,
-      "incumbent": 0.8542,
+      "incumbent": 0.8584,
       "same_recipe": 0.859,
       "logreg": 0.8647,
       "degraded": 0.7786,
+      "logreg_incumbent": 0.864,
       "best_single_feature": 0.8367
     },
     {
       "batch_seed": 20260167,
-      "incumbent": 0.8773,
-      "same_recipe": 0.8837,
+      "incumbent": 0.8791,
+      "same_recipe": 0.8823,
       "logreg": 0.8889,
       "degraded": 0.8304,
+      "logreg_incumbent": 0.888,
       "best_single_feature": 0.8505
     },
     {
       "batch_seed": 20260168,
-      "incumbent": 0.866,
-      "same_recipe": 0.8764,
+      "incumbent": 0.8738,
+      "same_recipe": 0.8775,
       "logreg": 0.8813,
       "degraded": 0.7935,
+      "logreg_incumbent": 0.8783,
       "best_single_feature": 0.8476
     },
     {
       "batch_seed": 20260169,
-      "incumbent": 0.8431,
-      "same_recipe": 0.8381,
+      "incumbent": 0.8412,
+      "same_recipe": 0.8402,
       "logreg": 0.8456,
       "degraded": 0.784,
+      "logreg_incumbent": 0.8481,
       "best_single_feature": 0.8097
     },
     {
       "batch_seed": 20260170,
-      "incumbent": 0.8821,
-      "same_recipe": 0.879,
+      "incumbent": 0.8833,
+      "same_recipe": 0.8845,
       "logreg": 0.8964,
       "degraded": 0.8095,
+      "logreg_incumbent": 0.894,
       "best_single_feature": 0.8573
     },
     {
       "batch_seed": 20260171,
-      "incumbent": 0.852,
-      "same_recipe": 0.8696,
+      "incumbent": 0.854,
+      "same_recipe": 0.8668,
       "logreg": 0.8704,
       "degraded": 0.7968,
+      "logreg_incumbent": 0.8683,
       "best_single_feature": 0.8215
     },
     {
       "batch_seed": 20260172,
-      "incumbent": 0.8293,
-      "same_recipe": 0.8278,
+      "incumbent": 0.832,
+      "same_recipe": 0.841,
       "logreg": 0.8395,
       "degraded": 0.7952,
+      "logreg_incumbent": 0.8417,
       "best_single_feature": 0.8094
     },
     {
       "batch_seed": 20260173,
-      "incumbent": 0.8234,
+      "incumbent": 0.8295,
       "same_recipe": 0.838,
       "logreg": 0.8535,
       "degraded": 0.803,
+      "logreg_incumbent": 0.8524,
       "best_single_feature": 0.8073
     },
     {
       "batch_seed": 20260174,
-      "incumbent": 0.8573,
-      "same_recipe": 0.8581,
+      "incumbent": 0.8648,
+      "same_recipe": 0.8667,
       "logreg": 0.876,
       "degraded": 0.8181,
+      "logreg_incumbent": 0.876,
       "best_single_feature": 0.8196
     },
     {
       "batch_seed": 20260175,
-      "incumbent": 0.7899,
-      "same_recipe": 0.793,
+      "incumbent": 0.7918,
+      "same_recipe": 0.7919,
       "logreg": 0.8191,
       "degraded": 0.7432,
+      "logreg_incumbent": 0.8173,
       "best_single_feature": 0.7572
     },
     {
       "batch_seed": 20260176,
-      "incumbent": 0.8264,
-      "same_recipe": 0.8331,
+      "incumbent": 0.8372,
+      "same_recipe": 0.8401,
       "logreg": 0.848,
       "degraded": 0.7901,
+      "logreg_incumbent": 0.846,
       "best_single_feature": 0.8119
     },
     {
       "batch_seed": 20260177,
-      "incumbent": 0.8443,
-      "same_recipe": 0.8493,
+      "incumbent": 0.8436,
+      "same_recipe": 0.8477,
       "logreg": 0.8532,
       "degraded": 0.7487,
+      "logreg_incumbent": 0.8541,
       "best_single_feature": 0.804
     },
     {
       "batch_seed": 20260178,
-      "incumbent": 0.842,
-      "same_recipe": 0.8418,
+      "incumbent": 0.8436,
+      "same_recipe": 0.8434,
       "logreg": 0.8478,
       "degraded": 0.7273,
+      "logreg_incumbent": 0.8497,
       "best_single_feature": 0.8239
     },
     {
       "batch_seed": 20260179,
-      "incumbent": 0.8395,
-      "same_recipe": 0.8419,
+      "incumbent": 0.8413,
+      "same_recipe": 0.8372,
       "logreg": 0.8449,
       "degraded": 0.8166,
+      "logreg_incumbent": 0.8458,
       "best_single_feature": 0.804
     },
     {
       "batch_seed": 20260180,
-      "incumbent": 0.8535,
-      "same_recipe": 0.8466,
+      "incumbent": 0.848,
+      "same_recipe": 0.8426,
       "logreg": 0.8638,
       "degraded": 0.7697,
+      "logreg_incumbent": 0.8644,
       "best_single_feature": 0.8264
     },
     {
       "batch_seed": 20260181,
-      "incumbent": 0.8436,
-      "same_recipe": 0.8402,
+      "incumbent": 0.8464,
+      "same_recipe": 0.8459,
       "logreg": 0.8525,
       "degraded": 0.7474,
+      "logreg_incumbent": 0.855,
       "best_single_feature": 0.8309
     },
     {
       "batch_seed": 20260182,
-      "incumbent": 0.8307,
-      "same_recipe": 0.8289,
+      "incumbent": 0.8397,
+      "same_recipe": 0.8282,
       "logreg": 0.8345,
       "degraded": 0.7636,
+      "logreg_incumbent": 0.8356,
       "best_single_feature": 0.7869
     },
     {
       "batch_seed": 20260183,
-      "incumbent": 0.8331,
-      "same_recipe": 0.8363,
+      "incumbent": 0.8317,
+      "same_recipe": 0.8385,
       "logreg": 0.8468,
       "degraded": 0.7774,
+      "logreg_incumbent": 0.8462,
       "best_single_feature": 0.8062
     },
     {
       "batch_seed": 20260184,
-      "incumbent": 0.8399,
-      "same_recipe": 0.8405,
+      "incumbent": 0.8394,
+      "same_recipe": 0.8404,
       "logreg": 0.8564,
       "degraded": 0.7052,
+      "logreg_incumbent": 0.858,
       "best_single_feature": 0.8177
     },
     {
       "batch_seed": 20260185,
-      "incumbent": 0.8461,
-      "same_recipe": 0.8462,
+      "incumbent": 0.8446,
+      "same_recipe": 0.8414,
       "logreg": 0.8534,
       "degraded": 0.7646,
+      "logreg_incumbent": 0.8546,
       "best_single_feature": 0.8189
     },
     {
       "batch_seed": 20260186,
-      "incumbent": 0.8432,
-      "same_recipe": 0.8558,
+      "incumbent": 0.8446,
+      "same_recipe": 0.8494,
       "logreg": 0.8613,
       "degraded": 0.7765,
+      "logreg_incumbent": 0.8634,
       "best_single_feature": 0.8019
     },
     {
       "batch_seed": 20260187,
-      "incumbent": 0.8468,
-      "same_recipe": 0.8563,
+      "incumbent": 0.8426,
+      "same_recipe": 0.8521,
       "logreg": 0.8701,
       "degraded": 0.7922,
+      "logreg_incumbent": 0.8667,
       "best_single_feature": 0.8131
     },
     {
       "batch_seed": 20260188,
-      "incumbent": 0.862,
-      "same_recipe": 0.8661,
+      "incumbent": 0.8611,
+      "same_recipe": 0.8705,
       "logreg": 0.8757,
       "degraded": 0.7956,
+      "logreg_incumbent": 0.8748,
       "best_single_feature": 0.8216
     },
     {
       "batch_seed": 20260189,
-      "incumbent": 0.8555,
-      "same_recipe": 0.8586,
+      "incumbent": 0.8495,
+      "same_recipe": 0.8558,
       "logreg": 0.865,
       "degraded": 0.8157,
+      "logreg_incumbent": 0.8634,
       "best_single_feature": 0.8339
     },
     {
       "batch_seed": 20260190,
-      "incumbent": 0.8591,
-      "same_recipe": 0.8579,
+      "incumbent": 0.8602,
+      "same_recipe": 0.8588,
       "logreg": 0.8733,
       "degraded": 0.7875,
+      "logreg_incumbent": 0.8735,
       "best_single_feature": 0.8244
     },
     {
       "batch_seed": 20260191,
-      "incumbent": 0.8758,
-      "same_recipe": 0.8654,
+      "incumbent": 0.8753,
+      "same_recipe": 0.8682,
       "logreg": 0.8866,
       "degraded": 0.8017,
+      "logreg_incumbent": 0.8855,
       "best_single_feature": 0.8543
     },
     {
       "batch_seed": 20260192,
-      "incumbent": 0.8419,
-      "same_recipe": 0.8493,
+      "incumbent": 0.8412,
+      "same_recipe": 0.8475,
       "logreg": 0.8489,
       "degraded": 0.7764,
+      "logreg_incumbent": 0.85,
       "best_single_feature": 0.7958
     },
     {
       "batch_seed": 20260193,
-      "incumbent": 0.8333,
-      "same_recipe": 0.8393,
+      "incumbent": 0.8354,
+      "same_recipe": 0.842,
       "logreg": 0.8543,
       "degraded": 0.7763,
+      "logreg_incumbent": 0.853,
       "best_single_feature": 0.8216
     },
     {
       "batch_seed": 20260194,
-      "incumbent": 0.848,
-      "same_recipe": 0.8476,
+      "incumbent": 0.8525,
+      "same_recipe": 0.8532,
       "logreg": 0.865,
       "degraded": 0.7904,
+      "logreg_incumbent": 0.864,
       "best_single_feature": 0.8291
     },
     {
       "batch_seed": 20260195,
-      "incumbent": 0.8659,
-      "same_recipe": 0.8627,
+      "incumbent": 0.8641,
+      "same_recipe": 0.8674,
       "logreg": 0.8726,
       "degraded": 0.8131,
+      "logreg_incumbent": 0.873,
       "best_single_feature": 0.8382
     },
     {
       "batch_seed": 20260196,
-      "incumbent": 0.8544,
-      "same_recipe": 0.8457,
+      "incumbent": 0.858,
+      "same_recipe": 0.8536,
       "logreg": 0.8677,
       "degraded": 0.8052,
+      "logreg_incumbent": 0.8671,
       "best_single_feature": 0.8344
     },
     {
       "batch_seed": 20260197,
-      "incumbent": 0.853,
-      "same_recipe": 0.8509,
+      "incumbent": 0.8498,
+      "same_recipe": 0.8516,
       "logreg": 0.853,
       "degraded": 0.7807,
+      "logreg_incumbent": 0.8552,
       "best_single_feature": 0.8062
     },
     {
       "batch_seed": 20260198,
-      "incumbent": 0.8382,
-      "same_recipe": 0.8319,
+      "incumbent": 0.8308,
+      "same_recipe": 0.8389,
       "logreg": 0.8482,
       "degraded": 0.6673,
+      "logreg_incumbent": 0.8489,
       "best_single_feature": 0.7947
     },
     {
       "batch_seed": 20260199,
       "incumbent": 0.869,
-      "same_recipe": 0.8637,
+      "same_recipe": 0.8679,
       "logreg": 0.8765,
       "degraded": 0.8012,
+      "logreg_incumbent": 0.8787,
       "best_single_feature": 0.8377
     },
     {
       "batch_seed": 20260200,
-      "incumbent": 0.8483,
-      "same_recipe": 0.8522,
+      "incumbent": 0.848,
+      "same_recipe": 0.8475,
       "logreg": 0.866,
       "degraded": 0.8201,
+      "logreg_incumbent": 0.8678,
       "best_single_feature": 0.8299
     },
     {
       "batch_seed": 20260201,
-      "incumbent": 0.8363,
-      "same_recipe": 0.8397,
+      "incumbent": 0.8441,
+      "same_recipe": 0.8464,
       "logreg": 0.8464,
       "degraded": 0.7764,
+      "logreg_incumbent": 0.8472,
       "best_single_feature": 0.7985
     }
   ]

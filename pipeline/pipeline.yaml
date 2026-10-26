@@ -27,7 +27,7 @@ schedule:
 params:
   data_seed: weekly        # this ISO week's batch; an integer replays a specific one
   fault: none              # fahrenheit: an upstream unit change, to show the abort
-  model_kind: rf           # rf (the production recipe) | logreg
+  model_kind: logreg       # v3's recipe, production since 26 Oct | rf (v2's recipe)
 
 steps:
   - name: ingest
@@ -57,8 +57,11 @@ steps:
     command: >-
       cp {inputs.validated_data}/sensors.csv data/raw/sensors.csv &&
       python -m src.train --model {params.model_kind} --experiment itcs355-lab5
+      --n-estimators 100 --max-depth 4 --min-samples-leaf 5
       --metrics-out {outputs.metrics}/metrics.json --model-out {outputs.model}
     outputs: [model, metrics]
+    # The forest settings are v2's (Lab 2's choice), so `model_kind=rf` retrains exactly
+    # the recipe v2 was; logistic regression ignores them.
     spot: true
     # Requested, not granted: this subscription's low-priority quota is 0 vCPUs
     # (Lab 2), so the compiler warns and the cluster runs dedicated. Training takes
