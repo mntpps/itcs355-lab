@@ -80,7 +80,7 @@ jobs:
         run: python scripts/make_dataset.py
 
       - name: Unit tests
-        run: pytest -q tests/test_unit.py tests/test_service.py tests/test_pipeline.py tests/test_workorder.py
+        run: pytest -q tests/test_unit.py tests/test_service.py tests/test_pipeline.py tests/test_workorder.py tests/test_portability.py
 
       - name: Data contract tests
         run: pytest -q tests/test_data.py

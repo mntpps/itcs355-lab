@@ -21,9 +21,11 @@ from src import config
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--lab", type=int, required=True)
+    ap.add_argument("--env", type=Path, default=None,
+                    help="another provider's env file, e.g. cloud.aws.env (Lab 5 Task 4)")
     args = ap.parse_args()
 
-    cfg = config.load()
+    cfg = config.load_file(args.env) if args.env else config.load()
     tags = cfg.tags(args.lab)
     adapter = get_adapter(cfg)
 

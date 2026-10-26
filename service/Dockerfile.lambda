@@ -1,0 +1,24 @@
+# ITCS355 Lab 5 Task 4 — the SAME serving image, runnable as an AWS Lambda.
+#
+#   docker build -f service/Dockerfile.serve -t itcs355-serve:local .
+#   docker build -f service/Dockerfile.lambda --build-arg BASE=itcs355-serve:local -t itcs355-lambda:<sha> .
+#
+# Nothing in service/ changes. The AWS Lambda Web Adapter is a Lambda extension that
+# receives the Lambda invocation event, replays it as an HTTP request to the app on port
+# 8080, and returns the response. Two additions only:
+#   * the adapter binary, in /opt/extensions where Lambda looks for extensions
+#   * boto3, so cloudlayer/aws.py can read the model from S3 (MODEL_URI)
+# That boto3 is needed at all is a portability cost: the Azure image carries the Azure
+# SDKs, this one carries both.
+ARG BASE=itcs355-serve:local
+FROM public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 AS adapter
+
+FROM ${BASE}
+USER root
+RUN pip install --no-cache-dir boto3==1.43.119
+COPY --from=adapter /lambda-adapter /opt/extensions/lambda-adapter
+USER runner
+# Lambda's filesystem is read-only except /tmp; the model is cached there.
+ENV PORT=8080 \
+    AWS_LWA_READINESS_CHECK_PATH=/health \
+    MODEL_CACHE=/tmp/model.joblib

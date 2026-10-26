@@ -67,6 +67,27 @@ class Config:
         return {"course": "itcs355", "student": self.project_id, "lab": str(lab)}
 
 
+def read_env_file(path: Path) -> dict[str, str]:
+    """KEY=value lines of an env file, without touching os.environ."""
+    values = {}
+    for line in Path(path).read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, _, value = line.partition("=")
+            values[key.strip()] = value.split(" #")[0].strip()
+    return values
+
+
+def load_file(path: Path) -> Config:
+    """A Config for a second provider (Lab 5 Task 4), read from its own env file, e.g.
+    cloud.aws.env. The primary cloud.env stays loaded in os.environ untouched."""
+    values = read_env_file(path)
+    missing = [s for s in CAPABILITY_SLOTS if not values.get(s)]
+    if missing:
+        raise RuntimeError(f"{path} is missing capability slots: {', '.join(missing)}")
+    return _build(values.get)
+
+
 def load(strict: bool = True) -> Config:
     missing = [s for s in CAPABILITY_SLOTS if not os.environ.get(s)]
     if missing and strict:
@@ -74,7 +95,10 @@ def load(strict: bool = True) -> Config:
             "Missing capability slots: " + ", ".join(missing)
             + "\nCopy cloud.env.example to cloud.env, fill it in, then run `make cloud-check`."
         )
-    get = os.environ.get
+    return _build(os.environ.get)
+
+
+def _build(get) -> Config:
     return Config(
         provider=get("CLOUD_PROVIDER", "local"),
         project_id=get("PROJECT_ID", "unset"),

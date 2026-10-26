@@ -1,0 +1,65 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "WhoAmIAndTokens",
+      "Effect": "Allow",
+      "Action": ["sts:GetCallerIdentity", "ecr:GetAuthorizationToken", "tag:GetResources", "iam:ListRoles"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "OneBucketPrefix",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket", "s3:DeleteBucket", "s3:PutBucketTagging", "s3:GetBucketTagging",
+        "s3:PutBucketPublicAccessBlock", "s3:GetBucketLocation", "s3:ListBucket", "s3:ListBucketVersions",
+        "s3:PutObject", "s3:GetObject", "s3:DeleteObject", "s3:DeleteObjectVersion"
+      ],
+      "Resource": ["arn:aws:s3:::itcs355-*", "arn:aws:s3:::itcs355-*/*"]
+    },
+    {
+      "Sid": "OneRegistry",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:CreateRepository", "ecr:DeleteRepository", "ecr:DescribeRepositories", "ecr:DescribeImages",
+        "ecr:TagResource", "ecr:BatchCheckLayerAvailability", "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart", "ecr:CompleteLayerUpload", "ecr:PutImage", "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer", "ecr:BatchDeleteImage", "ecr:SetRepositoryPolicy", "ecr:GetRepositoryPolicy"
+      ],
+      "Resource": "arn:aws:ecr:ap-southeast-1:*:repository/itcs355*"
+    },
+    {
+      "Sid": "OneFunctionPrefix",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:CreateFunction", "lambda:DeleteFunction", "lambda:GetFunction",
+        "lambda:GetFunctionConfiguration", "lambda:UpdateFunctionCode",
+        "lambda:UpdateFunctionConfiguration", "lambda:InvokeFunction", "lambda:TagResource", "lambda:ListTags"
+      ],
+      "Resource": "arn:aws:lambda:ap-southeast-1:*:function:itcs355-*"
+    },
+    {
+      "Sid": "ExecutionRoleOnly",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole", "iam:DeleteRole", "iam:GetRole", "iam:TagRole", "iam:ListRoleTags",
+        "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
+        "iam:ListAttachedRolePolicies", "iam:ListRolePolicies"
+      ],
+      "Resource": "arn:aws:iam::*:role/itcs355-*"
+    },
+    {
+      "Sid": "PassThatRoleToLambdaOnly",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::*:role/itcs355-*",
+      "Condition": {"StringEquals": {"iam:PassedToService": "lambda.amazonaws.com"}}
+    },
+    {
+      "Sid": "ReadAndRemoveItsLogs",
+      "Effect": "Allow",
+      "Action": ["logs:FilterLogEvents", "logs:DescribeLogStreams", "logs:GetLogEvents", "logs:DeleteLogGroup"],
+      "Resource": "arn:aws:logs:ap-southeast-1:*:log-group:/aws/lambda/itcs355-*"
+    }
+  ]
+}

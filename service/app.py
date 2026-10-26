@@ -51,12 +51,24 @@ def _load_model():
         mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db"))
         return mlflow.sklearn.load_model(f"models:/{name}/{version}")
 
-    # Fallback for local development and tests only. Submitting this is not acceptable:
-    # your deployed service must load a registered version.
     from pathlib import Path
 
     import joblib
 
+    # Lab 5 Task 4: on a provider with no MLflow registry wired up (AWS here), the model
+    # file is read from object storage THROUGH THE ADAPTER: the same download() the swap
+    # check exercises, so the service never names a provider.
+    uri = os.environ.get("MODEL_URI")
+    if uri:
+        from cloudlayer.factory import get_adapter
+        from src import config
+
+        local = Path(os.environ.get("MODEL_CACHE", "/tmp/model.joblib"))
+        get_adapter(config.load(strict=False)).download(uri, str(local))
+        return joblib.load(local)
+
+    # Fallback for local development and tests only. Submitting this is not acceptable:
+    # your deployed service must load a registered version.
     path = Path(os.environ.get("MODEL_PATH", "reports/model.joblib"))
     if not path.exists():
         raise RuntimeError(
