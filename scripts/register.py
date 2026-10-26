@@ -27,6 +27,31 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src import config, registry  # noqa: E402
 
 
+def create_version(c, name: str, run_id: str):
+    """Register the training run's `model` folder as a new version.
+
+    Not mlflow.register_model: in MLflow 3 it lists the run's artifacts, and when it does
+    not see MLmodel at the top of that listing it asks the tracking server for a "logged
+    model" instead. Azure ML's artifact listing returns run-relative paths
+    ("model/MLmodel"), so the check misses, and Azure ML has no logged-models endpoint
+    (HTTP 404). Checking for MLmodel ourselves, then creating the version from the
+    run's artifact location, is what register_model would have done had the check worked.
+    """
+    from mlflow.exceptions import MlflowException
+    from mlflow.store.artifact.runs_artifact_repo import RunsArtifactRepository
+
+    files = [f.path for f in c.list_artifacts(run_id, "model")]
+    if not any(p.rsplit("/", 1)[-1] == "MLmodel" for p in files):
+        raise RuntimeError(f"run {run_id} has no model/MLmodel to register; artifacts: {files}")
+    try:
+        c.create_registered_model(name)
+    except MlflowException as exc:
+        if "ALREADY_EXISTS" not in str(exc.error_code) and "already exists" not in str(exc).lower():
+            raise
+    source = RunsArtifactRepository.get_underlying_uri(f"runs:/{run_id}/model")
+    return c.create_model_version(name, source, run_id=run_id)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--metrics", type=Path)
@@ -61,7 +86,7 @@ def main() -> int:
     metrics = json.loads(args.metrics.read_text())
     verdict = json.loads((args.gate / "gate.json").read_text())
     mlflow.set_tracking_uri(cfg.mlflow_tracking_uri)
-    mv = mlflow.register_model(f"runs:/{metrics['run_id']}/model", name)
+    mv = create_version(c, name, metrics["run_id"])
 
     tags = {
         "run_id": metrics["run_id"],
