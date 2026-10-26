@@ -268,10 +268,13 @@ def schedule_azure(spec: dict[str, Any], name: str = "itcs355-retrain-weekly",
     }
     sched_path = BUILD / "azure-schedule.yaml"
     sched_path.write_text(yaml.safe_dump(doc, sort_keys=False))
-    out = json.loads(_az("schedule", "create", "--file", str(sched_path), "-o", "json"))
-    print(f"schedule {out['name']}: {sched['cron']} ({doc['trigger']['time_zone']}), "
-          f"enabled={out.get('is_enabled')}")
-    return out["name"]
+    # `az ml schedule create` can succeed and print nothing (seen on Windows, CLI 2.90), so
+    # read the result back rather than parsing create's output.
+    _az("schedule", "create", "--file", str(sched_path))
+    out = json.loads(_az("schedule", "show", "-n", name, "-o", "json") or "{}")
+    print(f"schedule {name}: {out.get('trigger', {}).get('expression', sched['cron'])} "
+          f"({doc['trigger']['time_zone']}), enabled={out.get('is_enabled')}")
+    return name
 
 
 def unschedule_azure(name: str = "itcs355-retrain-weekly") -> None:
