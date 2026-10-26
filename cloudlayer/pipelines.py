@@ -250,13 +250,16 @@ def submit_azure(spec: dict[str, Any], params: dict[str, str], wait: bool = Fals
     return job["name"]
 
 
-def schedule_azure(spec: dict[str, Any], name: str = "itcs355-retrain-weekly") -> str:
+def schedule_azure(spec: dict[str, Any], name: str = "itcs355-retrain-weekly",
+                   cron: str | None = None) -> str:
+    """Create or update the schedule. `cron` overrides the spec's (for a near-term test
+    firing; run again without it to restore the weekly one)."""
     path = write_azure(spec)
-    sched = spec["schedule"]
+    sched = dict(spec["schedule"], **({"cron": cron} if cron else {}))
     doc = {
         "$schema": "https://azuremlschemas.azureedge.net/latest/schedule.schema.json",
         "name": name,
-        "display_name": f"{spec['name']} (weekly)",
+        "display_name": f"{spec['name']} ({sched['cron']})",
         "description": "Scheduled retraining. The gate decides whether anything ships.",
         "tags": {k: str(v) for k, v in spec.get("tags", {}).items()},
         "trigger": {"type": "cron", "expression": sched["cron"],
@@ -291,6 +294,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("action", choices=("compile", "submit", "schedule", "unschedule"))
     ap.add_argument("--set", action="append", default=[], metavar="PARAM=VALUE")
     ap.add_argument("--wait", action="store_true", help="stream the run until it finishes")
+    ap.add_argument("--cron", help="schedule: override the spec's cron (a test firing)")
     args = ap.parse_args(argv)
 
     spec = load_spec()
@@ -303,7 +307,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.action == "submit":
         submit_azure(spec, dict(kv.split("=", 1) for kv in args.set), wait=args.wait)
     elif args.action == "schedule":
-        schedule_azure(spec)
+        schedule_azure(spec, cron=args.cron)
     else:
         unschedule_azure()
     return 0

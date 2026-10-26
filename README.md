@@ -301,6 +301,34 @@ All four ran on the `itcs355-lab5-cpu` cluster on 26 October 2026; screenshots a
 
 Run 1 trained on week 43 because it was submitted at 01:15 Bangkok time, still Sunday in UTC, and the ingest step's week is a UTC week. Getting to run 3 took three failed attempts at the register step, about 1 THB each, and each failure is now covered by a test. MLflow 3's `register_model` and `list_artifacts` both query a "logged models" API that Azure ML does not have (HTTP 404), and Azure's artifact listing takes different arguments from MLflow's own. Register now creates the version directly from the run's artifact location. If the registry refuses that, it uploads the train step's model folder instead.
 
+### What should trigger a retrain? (Task 3)
+
+The pipeline is scheduled weekly, **Monday 09:00 Bangkok** (`python -m cloudlayer.pipelines schedule`). Each scheduled run takes the new week's batch, retrains production's recipe, and lets the gate decide. Most weeks the gate says no, and that is the expected outcome: a no-change logistic-regression retrain has never passed it.
+
+**Why this cron.** Readings arrive as weekly batches. Retraining more often than data arrives retrains on a batch the gate has already seen, and the paired comparison needs machines neither model trained on. 09:00 rather than overnight for two reasons. 03:00 Bangkok is still Sunday in UTC, the clock the ingest step's week follows, so an overnight run trains on last week's batch (run 1 did exactly that by accident). And at 09:00 someone is at work when a deploy happens. Cost: about 1 THB a run, 52 a year.
+
+| Strategy | When it is right for this system | How it fails here |
+|---|---|---|
+| **Fixed schedule** (weekly) | Data arrives as weekly batches, and wear changes over months, not hours. A schedule matches the data's own cadence, its cost is known (about 52 THB a year), and the gate turns "retrain" into "consider a candidate". | A real shift waits up to 7 days. 51 of 52 runs change nothing, which is compute spent on a "no". If a corruption subtle enough to pass the contract tests is present on Monday, the schedule trains on it like any other batch. |
+| **Data-volume threshold** (say, every 6,000 newly labelled readings) | It would suit uneven arrival: a fleet that grows, or machines reporting in bursts. | Here arrival is steady, about 6,000 readings a week, so it degenerates into the weekly schedule with extra machinery. Labels lag by 7 days (`failed_within_7d`), so "6,000 new rows" is really "6,000 rows from a week ago". A gateway outage followed by a backfill fires it on duplicated, time-shifted readings. Volume says nothing about whether the data changed. |
+| **Drift-triggered** (the Lab 4 detector, PSI ≥ 0.10) | Machines genuinely start running hotter, for example a heatwave or a new duty cycle, and the model should learn it soon. | **Drift is also what upstream corruption looks like, and this trigger fires at exactly that moment.** See below. |
+
+**The worst case, measured** (`scripts/retrain_trigger_study.py`, 20 batches per offset, [`reports/lab5-retrain-triggers.json`](reports/lab5-retrain-triggers.json)). Take the Lab 4 incident: every `temp_c` reading offset by a constant while the machines are unchanged.
+
+| Offset | Contract tests pass | Drift detector fires | Gate passes a logistic regression trained on it (v2 / v3 in production) | Failing machines it would flag on clean data (v3 flags 35.2%) |
+|---|---|---|---|---|
+| +2 °C | 100% | 15% | 85% / 0% | 34.1% |
+| +3 °C | 35% | 65% | 65% / 0% | 32.7% |
+| +6 °C | 0% | 100% | 70% / 0% | 28.2% |
+
+The gate compares ROC-AUC, which only ranks machines, and a constant offset does not change the ranking. **The gate cannot see this corruption.** It sees only whether the recipe is better. With v2's forest in production, a better recipe trained on corrupted data passes about 70% of the time and ships the corruption with it.
+
+At +3 °C the batch slips past the contract tests a third of the time, and the model that ships flags 32.7% of failing machines instead of the 36.3% a clean retrain of the same recipe would. That is a third of the improvement given back. At +6 °C, all of the improvement is gone. With v3 in production, the same corrupted retrain is blocked every time, because there is no recipe gain to carry it.
+
+Drift-triggered retraining makes the bad case fast. The detector fires within 15 minutes of the fault, the pipeline takes about 15 more, and a working model is replaced by a miscalibrated one within half an hour, before anyone has read the alert. The weekly schedule only goes wrong if the fault is still there on Monday morning. By then the Lab 4 Slack alert has had days to reach a person, and the fix is a sensor fix, not a retrain (Lab 4 post-mortem).
+
+**Chosen:** the weekly schedule, behind the contract tests and the gate. **Drift alerts go to a person, never to the trainer.** Accepted worst case: a subtle offset (under about 0.25 reference SD) that starts before a Monday run, passes the contract, and arrives together with a genuine recipe change, so the gate passes it. The model then under-flags until the next corrected week. Two defences, in order of value: a recipe change goes through a person rather than the schedule (the schedule only ever retrains production's own recipe, `model_kind` = production's), and the schedule can be paused (`python -m cloudlayer.pipelines unschedule`) whenever a drift alert is open.
+
 ---
 
 ## Checklist before you submit

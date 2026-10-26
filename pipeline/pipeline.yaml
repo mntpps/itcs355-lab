@@ -19,9 +19,13 @@ image: "${CONTAINER_REGISTRY}:train-${IMAGE_TAG}"
 compute: "${TRAIN_INSTANCE}"
 workdir: /app
 
-# Weekly, Monday 03:00 Bangkok time. The argument is in the README's Task 3 section.
+# Weekly, Monday 09:00 Bangkok time (02:00 UTC). Data arrives as weekly batches, and the
+# gate needs a batch neither model has seen. 09:00 rather than overnight: it is still
+# Monday in UTC, which is the week the ingest step reads (03:00 Bangkok is Sunday in UTC,
+# so it would retrain on last week's batch, as run 1 did by accident), and someone is at
+# work when the deploy happens. The full argument is in the README's Task 3 section.
 schedule:
-  cron: "0 3 * * 1"
+  cron: "0 9 * * 1"
   timezone: Asia/Bangkok
 
 params:
