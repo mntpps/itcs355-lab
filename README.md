@@ -241,7 +241,7 @@ alone (0.18 vs KS 0.11). Mix stays below threshold on the whole file.
 
 - The rolling window and the metrics live in process memory, so staging runs one replica with one uvicorn worker. A restart, including scale-from-zero, empties the window, and the detector then reports "no verdict" rather than a false all-clear. Production would write accepted inputs to a table and compute the window there.
 - The detector first ran on a GitHub Actions schedule. That schedule fired 4 times in 9 hours, then not at all for 5 hours, including the hour after the injected drift, so it could not detect anything. GitHub only promises scheduled runs best-effort. The check moved to an Azure Container Apps cron job; `drift.yml` stays as a manual `gh workflow run` fallback. Detection latency is now at most 15 minutes plus about a minute of job start-up. The post-mortem's fix, a Prometheus alert rule on the existing series, would bring it to about 3 minutes.
-- The CD identity has Contributor on the resource group. That is broader than needed: updating a Container App also needs join rights on its environment, and a custom role with `Microsoft.App/containerApps/*` plus `managedEnvironments/join/action` would be the least-privilege version.
+- The CD identity has Contributor on the resource group, which is broader than needed. *Corrected in Lab 5:* updating an app does **not** need join rights on its environment, as this README first claimed. Contributor on the app alone is enough (`docs/lab5-permissions.md`).
 
 ### Teardown
 
@@ -301,9 +301,15 @@ All four ran on the `itcs355-lab5-cpu` cluster on 26 October 2026; screenshots a
 
 Run 1 trained on week 43 because it was submitted at 01:15 Bangkok time, still Sunday in UTC, and the ingest step's week is a UTC week. Getting to run 3 took three failed attempts at the register step, about 1 THB each, and each failure is now covered by a test. MLflow 3's `register_model` and `list_artifacts` both query a "logged models" API that Azure ML does not have (HTTP 404), and Azure's artifact listing takes different arguments from MLflow's own. Register now creates the version directly from the run's artifact location. If the registry refuses that, it uploads the train step's model folder instead.
 
+### Least privilege (Task 2)
+
+Three identities, training, serving and CI/deploy, each with only the roles its job needs. The table, the two removal tests, and two places where the boundary leaks are in [`docs/lab5-permissions.md`](docs/lab5-permissions.md). In short: the CI identity went from Contributor on the whole resource group to three narrow roles. Two more roles were removed after tests showed nothing needs them. One of those tests showed that inside Azure ML, storage roles do not limit what a job can read from the workspace datastore.
+
 ### What should trigger a retrain? (Task 3)
 
 The pipeline is scheduled weekly, **Monday 09:00 Bangkok** (`python -m cloudlayer.pipelines schedule`). Each scheduled run takes the new week's batch, retrains production's recipe, and lets the gate decide. Most weeks the gate says no, and that is the expected outcome: a no-change logistic-regression retrain has never passed it.
+
+The schedule was tested with a one-off firing at 02:30 on 27 Oct (`--cron "30 2 27 10 *"`, then reset to weekly). Azure ML started `itcs355-retrain-weekly-20261026T193017Z` on its own. It retrained the logistic regression on week 44 and scored 0.8307, the same as v3 on the same machines: gain +0.0000, **GATE FAIL**, register and deploy skipped (`reports/lab5/schedule-fired-gate-fail.png`). This is also the "retrain production against itself" case the gate must reject.
 
 **Why this cron.** Readings arrive as weekly batches. Retraining more often than data arrives retrains on a batch the gate has already seen, and the paired comparison needs machines neither model trained on. 09:00 rather than overnight for two reasons. 03:00 Bangkok is still Sunday in UTC, the clock the ingest step's week follows, so an overnight run trains on last week's batch (run 1 did exactly that by accident). And at 09:00 someone is at work when a deploy happens. Cost: about 1 THB a run, 52 a year.
 

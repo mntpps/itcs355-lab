@@ -24,9 +24,10 @@
 #   itcs355-github  CI (GitHub OIDC, no secret) and the pipeline's deploy_staging step
 #       AcrPush                         registry           push the serving and training images
 #       AzureML Data Scientist          workspace          trigger the pipeline; re-tag on rollback
-#       Storage Blob Data Reader        workspace storage  read the register step's output
 #       Contributor                     staging app ONLY   create a new revision (deploy)
-#       ITCS355 environment join        Container Apps env the join action a revision needs
+#     Two roles it started with were removed after testing showed nothing needs them
+#     (docs/lab5-permissions.md): Storage Blob Data Reader on the workspace storage, and a
+#     custom "join the Container Apps environment" role.
 #
 # The Lab 5 cluster carries itcs355-train and itcs355-github; each pipeline step names which
 # one it runs as (pipeline/pipeline.yaml `identities`).
@@ -84,24 +85,6 @@ for name in itcs355-train itcs355-serve itcs355-github; do
   echo "  $name  client ${CLIENT[$name]}"
 done
 
-step "Custom role: join the Container Apps environment, and nothing else"
-JOIN_ROLE="ITCS355 Container Apps environment join"
-if [ -z "$(az role definition list --name "$JOIN_ROLE" --query "[].id" -o tsv)" ]; then
-  mkdir -p pipeline/build
-  cat > pipeline/build/join-role.json <<EOF
-{
-  "Name": "$JOIN_ROLE",
-  "Description": "Create Container App revisions in an existing environment. ITCS355 Lab 5.",
-  "Actions": ["Microsoft.App/managedEnvironments/join/action", "Microsoft.App/managedEnvironments/read"],
-  "AssignableScopes": ["/subscriptions/$SUB/resourceGroups/$RG"]
-}
-EOF
-  az role definition create --role-definition @pipeline/build/join-role.json -o none
-  echo "created; waiting 30 s for it to replicate"
-  sleep 30
-fi
-echo "  $JOIN_ROLE"
-
 step "Staging app $APP"
 if ! az containerapp show -n "$APP" -g "$RG" -o none 2>/dev/null; then
   # Before the app exists the serve identity needs AcrPull, or the first revision cannot
@@ -144,9 +127,7 @@ assign itcs355-serve  AcrPull                         "$ACR_ID"
 assign itcs355-serve  "AzureML Data Scientist"        "$WS_ID"
 assign itcs355-github AcrPush                         "$ACR_ID"
 assign itcs355-github "AzureML Data Scientist"        "$WS_ID"
-assign itcs355-github "Storage Blob Data Reader"      "$STORAGE_ID"
 assign itcs355-github Contributor                     "$APP_ID"
-assign itcs355-github "$JOIN_ROLE"                    "$ENV_ID"
 
 step "Federated credentials: GitHub Actions may become itcs355-github"
 IDS="${GITHUB_REPO_IDS:-mntpps@194188007/itcs355-lab@1368344234}"
