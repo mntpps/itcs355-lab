@@ -117,8 +117,19 @@ def test_registration_never_asks_for_logged_models(tiny_registry, monkeypatch, t
     mlflow.sklearn.save_model(DummyClassifier().fit([[0], [1]], [0, 1]), str(model_dir))
     with mlflow.start_run() as run:
         mlflow.log_artifacts(str(model_dir), artifact_path="model")
-    mv = register.create_version(registry.client(tiny_registry), "m", run.info.run_id)
-    assert str(mv.version) == "3"
+    c = registry.client(tiny_registry)
+    mv, how = register.create_version(c, "m", run.info.run_id, tiny_registry, model_dir)
+    assert (str(mv.version), how) == ("3", "run artifacts")
+
+    # If the registry refuses the run's artifact location, the step's own folder is used.
+    real = MlflowClient.create_model_version
+    def refuse_run_sources(self, name, source, run_id=None, **kw):
+        if run_id is not None:
+            raise RuntimeError("simulated refusal")
+        return real(self, name, source, run_id=run_id, **kw)
+    monkeypatch.setattr(MlflowClient, "create_model_version", refuse_run_sources)
+    mv, how = register.create_version(c, "m", run.info.run_id, tiny_registry, model_dir)
+    assert (str(mv.version), how) == ("4", "train step output")
 
 
 def test_register_refuses_when_the_gate_failed(tmp_path):
@@ -207,6 +218,7 @@ def test_guard_really_skips_on_fail(compiled, tmp_path):
     cmd = (cmd.replace("${{inputs.gate_decision}}", str(tmp_path / "g"))
               .replace("${{outputs.registered}}", str(tmp_path / "o"))
               .replace("${{inputs.metrics}}", str(tmp_path))
+              .replace("${{inputs.model}}", str(tmp_path))
               .replace("cd /app", f"cd {tmp_path}")
               .replace("python scripts/register.py", "touch RAN; true"))
     subprocess.run(["bash", "-c", cmd], check=True, capture_output=True)

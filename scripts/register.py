@@ -27,37 +27,47 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src import config, registry  # noqa: E402
 
 
-def create_version(c, name: str, run_id: str):
-    """Register the training run's `model` folder as a new version.
+def create_version(c, name: str, run_id: str, tracking_uri: str, local_model: Path | None = None):
+    """Register the training run's model as a new version. Returns (version, how).
 
-    Avoids every MLflow 3 code path that goes through a `runs:/` artifact repository.
-    That repository looks up "logged models" on the tracking server, an API Azure ML does
-    not have, so both mlflow.register_model and MlflowClient.list_artifacts end in
-    HTTP 404 on /api/2.0/mlflow/logged-models/search (runs purple_train_x8vmf3v5tx and the
-    one after it). Instead: resolve the run's own artifact location, list it with that
-    location's repository, check MLmodel is there, and create the version from it.
+    MLflow 3's convenience paths (mlflow.register_model, MlflowClient.list_artifacts on a
+    runs:/ URI) look up "logged models" on the tracking server, an API Azure ML does not
+    have: HTTP 404 on /api/2.0/mlflow/logged-models/search, seen live twice. So this calls
+    the registry directly:
+
+      1. create the version from the run's own artifact location (keeps the run link);
+      2. if the registry refuses that, register the train step's model folder, which this
+         step also receives, as a local upload (file://). Azure ML's registry plugin
+         uploads the folder and registers it; the run id is kept as a tag instead.
+
+    No artifact listing first: Azure ML's listing returns run-relative paths and needs an
+    explicit path argument, and each wrong guess about it has cost a pipeline run.
     """
     from mlflow.exceptions import MlflowException
-    from mlflow.store.artifact.artifact_repository_registry import get_artifact_repository
     from mlflow.tracking.artifact_utils import get_artifact_uri
 
-    source = get_artifact_uri(run_id=run_id, artifact_path="model", tracking_uri=c._tracking_client.tracking_uri)
-    files = [f.path for f in get_artifact_repository(source).list_artifacts()]
-    if not any(p.rsplit("/", 1)[-1] == "MLmodel" for p in files):
-        raise RuntimeError(f"no MLmodel under {source}; found {files}")
     try:
         c.create_registered_model(name)
     except MlflowException as exc:
         if "ALREADY_EXISTS" not in str(exc.error_code) and "already exists" not in str(exc).lower():
             raise
-    print(f"registering {source}")
-    return c.create_model_version(name, source, run_id=run_id)
+    source = get_artifact_uri(run_id=run_id, artifact_path="model", tracking_uri=tracking_uri)
+    try:
+        return c.create_model_version(name, source, run_id=run_id), "run artifacts"
+    except Exception as exc:  # noqa: BLE001 - any refusal: fall back to the folder we hold
+        if local_model is None or not (Path(local_model) / "MLmodel").exists():
+            raise
+        print(f"registering from {source} failed: {str(exc)[:300]}")
+        uri = Path(local_model).resolve().as_uri()
+        print(f"registering the train step's model folder instead: {uri}")
+        return c.create_model_version(name, uri), "train step output"
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--metrics", type=Path)
     ap.add_argument("--gate", type=Path, help="the evaluate step's decision folder")
+    ap.add_argument("--model", type=Path, help="the train step's model folder (fallback source)")
     ap.add_argument("--registered-out", type=Path, help="writes `version` here")
     ap.add_argument("--adopt", metavar="VERSION",
                     help="mark an already-registered version as production (bootstrap)")
@@ -88,7 +98,7 @@ def main() -> int:
     metrics = json.loads(args.metrics.read_text())
     verdict = json.loads((args.gate / "gate.json").read_text())
     mlflow.set_tracking_uri(cfg.mlflow_tracking_uri)
-    mv = create_version(c, name, metrics["run_id"])
+    mv, how = create_version(c, name, metrics["run_id"], cfg.mlflow_tracking_uri, args.model)
 
     tags = {
         "run_id": metrics["run_id"],
@@ -100,6 +110,7 @@ def main() -> int:
         "gate_beat_version": verdict["incumbent_version"],
         "gate_min_improvement": verdict["min_improvement"],
         "pipeline_run": os.environ.get("PIPELINE_RUN_ID", "manual"),
+        "registered_from": how,
     }
     replaced = registry.promote(c, name, mv.version, {k: v for k, v in tags.items() if v is not None})
     (args.registered_out / "version").write_text(f"{mv.version}\n")

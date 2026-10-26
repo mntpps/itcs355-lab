@@ -74,11 +74,11 @@ steps:
     outputs: [gate_decision]
 
   - name: register
-    inputs: {metrics: train, gate_decision: evaluate}
+    inputs: {metrics: train, model: train, gate_decision: evaluate}
     condition: {input: gate_decision, file: decision, equals: pass}
     command: >-
       python scripts/register.py --metrics {inputs.metrics}/metrics.json
-      --gate {inputs.gate_decision} --registered-out {outputs.registered}
+      --model {inputs.model} --gate {inputs.gate_decision} --registered-out {outputs.registered}
     outputs: [registered]
     # A pipeline that registers unconditionally has no gate. When the decision is "fail"
     # this step's command never runs (the compiler wraps it in the condition), and
