@@ -64,6 +64,7 @@ def tiny_registry(tmp_path, monkeypatch):
 
     uri = f"sqlite:///{tmp_path / 'mlflow.db'}"
     mlflow.set_tracking_uri(uri)
+    mlflow.create_experiment("t", artifact_location=(tmp_path / "artifacts").as_uri())
     mlflow.set_experiment("t")
     for _ in range(2):
         with mlflow.start_run():
@@ -89,6 +90,35 @@ def test_unknown_model_has_no_production_version(tiny_registry):
     from src import registry
 
     assert registry.production_version(registry.client(tiny_registry), "never-registered") is None
+
+
+def test_registration_never_asks_for_logged_models(tiny_registry, monkeypatch, tmp_path):
+    """Azure ML has no logged-models API; any MLflow path that calls it 404s there.
+    Regression test for the register step that failed live twice."""
+    import importlib.util
+
+    from mlflow.tracking import MlflowClient
+
+    from src import registry
+
+    def no_such_api(*a, **k):
+        raise AssertionError("search_logged_models called: this 404s on Azure ML")
+    monkeypatch.setattr(MlflowClient, "search_logged_models", no_such_api)
+
+    spec = importlib.util.spec_from_file_location("register", ROOT / "scripts" / "register.py")
+    register = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(register)
+    import mlflow
+    from sklearn.dummy import DummyClassifier
+
+    # Log the model exactly as src/train.py does: saved to a folder, then logged as the
+    # run's `model` artifacts (not mlflow.sklearn.log_model, which makes a logged model).
+    model_dir = tmp_path / "model"
+    mlflow.sklearn.save_model(DummyClassifier().fit([[0], [1]], [0, 1]), str(model_dir))
+    with mlflow.start_run() as run:
+        mlflow.log_artifacts(str(model_dir), artifact_path="model")
+    mv = register.create_version(registry.client(tiny_registry), "m", run.info.run_id)
+    assert str(mv.version) == "3"
 
 
 def test_register_refuses_when_the_gate_failed(tmp_path):

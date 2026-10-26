@@ -30,25 +30,27 @@ from src import config, registry  # noqa: E402
 def create_version(c, name: str, run_id: str):
     """Register the training run's `model` folder as a new version.
 
-    Not mlflow.register_model: in MLflow 3 it lists the run's artifacts, and when it does
-    not see MLmodel at the top of that listing it asks the tracking server for a "logged
-    model" instead. Azure ML's artifact listing returns run-relative paths
-    ("model/MLmodel"), so the check misses, and Azure ML has no logged-models endpoint
-    (HTTP 404). Checking for MLmodel ourselves, then creating the version from the
-    run's artifact location, is what register_model would have done had the check worked.
+    Avoids every MLflow 3 code path that goes through a `runs:/` artifact repository.
+    That repository looks up "logged models" on the tracking server, an API Azure ML does
+    not have, so both mlflow.register_model and MlflowClient.list_artifacts end in
+    HTTP 404 on /api/2.0/mlflow/logged-models/search (runs purple_train_x8vmf3v5tx and the
+    one after it). Instead: resolve the run's own artifact location, list it with that
+    location's repository, check MLmodel is there, and create the version from it.
     """
     from mlflow.exceptions import MlflowException
-    from mlflow.store.artifact.runs_artifact_repo import RunsArtifactRepository
+    from mlflow.store.artifact.artifact_repository_registry import get_artifact_repository
+    from mlflow.tracking.artifact_utils import get_artifact_uri
 
-    files = [f.path for f in c.list_artifacts(run_id, "model")]
+    source = get_artifact_uri(run_id=run_id, artifact_path="model", tracking_uri=c._tracking_client.tracking_uri)
+    files = [f.path for f in get_artifact_repository(source).list_artifacts()]
     if not any(p.rsplit("/", 1)[-1] == "MLmodel" for p in files):
-        raise RuntimeError(f"run {run_id} has no model/MLmodel to register; artifacts: {files}")
+        raise RuntimeError(f"no MLmodel under {source}; found {files}")
     try:
         c.create_registered_model(name)
     except MlflowException as exc:
         if "ALREADY_EXISTS" not in str(exc.error_code) and "already exists" not in str(exc).lower():
             raise
-    source = RunsArtifactRepository.get_underlying_uri(f"runs:/{run_id}/model")
+    print(f"registering {source}")
     return c.create_model_version(name, source, run_id=run_id)
 
 
