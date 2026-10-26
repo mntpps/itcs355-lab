@@ -20,7 +20,7 @@ AZURE_BLOB = "https://acct.blob" + ".core.windows.net/c/itcs355"
 
 
 def aws_cfg(**over):
-    base = dict(provider="aws", project_id="itcs355-test", region="ap-southeast-1",
+    base = dict(provider="aws", project_id="itcs355-test", region="ap-southeast-2",
                 blob_uri=S3 + "itcs355-test-bucket/itcs355", container_registry="",
                 mlflow_tracking_uri="sqlite:///x.db", model_registry_name="m", identity_ref="")
     return config.Config(**{**base, **over})
@@ -31,14 +31,14 @@ def s3(monkeypatch):
     pytest.importorskip("boto3")
     moto = pytest.importorskip("moto")
     for k, v in {"AWS_ACCESS_KEY_ID": "test", "AWS_SECRET_ACCESS_KEY": "test",
-                 "AWS_DEFAULT_REGION": "ap-southeast-1"}.items():
+                 "AWS_DEFAULT_REGION": "ap-southeast-2"}.items():
         monkeypatch.setenv(k, v)
     with moto.mock_aws():
         from cloudlayer.aws import AwsAdapter
 
         AwsAdapter(aws_cfg())._client("s3").create_bucket(
             Bucket="itcs355-test-bucket",
-            CreateBucketConfiguration={"LocationConstraint": "ap-southeast-1"})
+            CreateBucketConfiguration={"LocationConstraint": "ap-southeast-2"})
         yield
 
 
@@ -127,7 +127,7 @@ def test_second_provider_config_comes_from_its_own_file(tmp_path):
     before = os.environ.get("CLOUD_PROVIDER")
     env = tmp_path / "cloud.aws.env"
     env.write_text("\n".join([
-        "CLOUD_PROVIDER=aws", "PROJECT_ID=p", "REGION=ap-southeast-1",
+        "CLOUD_PROVIDER=aws", "PROJECT_ID=p", "REGION=ap-southeast-2",
         f"BLOB_URI={S3}b/itcs355", "CONTAINER_REGISTRY=r", "MLFLOW_TRACKING_URI=sqlite:///m.db",
         "MODEL_REGISTRY_NAME=m", "IDENTITY_REF=arn:aws:iam::1:role/x",
         "SERVING_ENDPOINT=itcs355-predict  # a comment"]))

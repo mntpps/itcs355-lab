@@ -18,6 +18,10 @@
 # inside the serving image so the scikit-learn version matches, uploaded to S3, and read
 # back by the service at cold start through cloudlayer/aws.py's download().
 #
+# Region: ap-southeast-2 (Sydney). This account is on AWS's Free plan, which an
+# AWS-managed service control policy locks to the region chosen at sign-up: CreateBucket
+# was denied in ap-southeast-1 and us-east-1 and allowed in ap-southeast-2 (27 Oct).
+#
 # Cost: the free plan covers it. A few Lambda invocations, kilobytes in S3, one ~1 GB
 # image in ECR (~0.10 USD per GB-month).
 # Teardown: python scripts/teardown_verify.py --lab 5 --env cloud.aws.env
@@ -31,7 +35,7 @@ case "$(uname -s)" in
 esac
 
 cd "$(dirname "$0")/.."
-REGION="${AWS_REGION:-ap-southeast-1}"
+REGION="${AWS_REGION:-ap-southeast-2}"
 STUDENT="$(tr -d '\r' < cloud.env | grep -E '^PROJECT_ID=' | cut -d= -f2-)"
 MODEL_NAME="$(tr -d '\r' < cloud.env | grep -E '^MODEL_REGISTRY_NAME=' | cut -d= -f2-)"
 ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
