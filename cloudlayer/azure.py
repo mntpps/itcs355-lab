@@ -338,12 +338,12 @@ class AzureAdapter(CloudAdapter):
         ).stdout.strip()
         return f"https://{fqdn}"
 
-    def invoke(self, endpoint: str, payload: dict[str, object]) -> dict[str, object]:
-        """Invoke the deployed Azure Container App."""
+    def invoke(self, endpoint: str, payload: dict[str, object], path: str = "/predict") -> dict[str, object]:
+        """Invoke the deployed Azure Container App (`path`: /predict or /predict/batch)."""
         import json
         import urllib.request
 
-        url = endpoint.rstrip("/") + "/predict"
+        url = endpoint.rstrip("/") + path
 
         request = urllib.request.Request(
             url,

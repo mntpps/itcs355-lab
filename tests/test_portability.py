@@ -137,3 +137,23 @@ def test_second_provider_config_comes_from_its_own_file(tmp_path):
     assert (cfg.provider, cfg.blob_uri) == ("aws", S3 + "b/itcs355")
     assert config.read_env_file(env)["SERVING_ENDPOINT"] == "itcs355-predict"
     assert os.environ.get("CLOUD_PROVIDER") == before   # the primary config is untouched
+
+
+def test_fleet_is_scored_in_batches_of_at_most_100():
+    import sys
+
+    sys.path.insert(0, str(config.REPO_ROOT / "scripts"))
+    from score_fleet import score
+
+    class Fake:
+        def __init__(self):
+            self.sizes = []
+
+        def invoke(self, endpoint, payload, path="/predict"):
+            assert path == "/predict/batch"
+            self.sizes.append(len(payload["rows"]))
+            return {"probabilities": [0.1] * len(payload["rows"]), "model_version": "3"}
+
+    fake = Fake()
+    probs, version, calls = score(fake, "e", [{"x": i} for i in range(240)])
+    assert (len(probs), version, calls, fake.sizes) == (240, "3", 3, [100, 100, 40])
