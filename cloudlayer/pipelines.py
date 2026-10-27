@@ -278,15 +278,16 @@ def schedule_azure(spec: dict[str, Any], name: str = "itcs355-retrain-weekly",
 
 
 def unschedule_azure(name: str = "itcs355-retrain-weekly") -> None:
-    # A schedule must be disabled before it can be deleted.
+    # A schedule must be disabled before it can be deleted, so the disable has to finish
+    # first (no --no-wait). `az ml schedule delete` has no --yes: it does not prompt.
     try:
-        _az("schedule", "disable", "-n", name, "--no-wait")
+        _az("schedule", "disable", "-n", name)
     except RuntimeError as exc:
         if "not found" in str(exc).lower() or "ResourceNotFound" in str(exc):
             print(f"no schedule {name}")
             return
         raise
-    _az("schedule", "delete", "-n", name, "--yes")
+    _az("schedule", "delete", "-n", name)
     print(f"deleted schedule {name}")
 
 
