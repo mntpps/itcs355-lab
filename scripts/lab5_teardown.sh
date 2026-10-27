@@ -76,7 +76,7 @@ fi
 cat <<EOF
 
 Deletion is asynchronous. Re-check now, and again in 24 hours:
-  az resource list -g $RG --tag lab=5 -o table          # only $(get TEARDOWN_KEEP) should remain
+  az resource list -g $RG --query "[?tags.lab=='5'].name" -o table   # empty (clusters are not listed here)
   az ml compute list -g $RG -w $WS -o table              # no itcs355-lab5-cpu
   az ml schedule list -g $RG -w $WS -o table             # empty
   $PY scripts/teardown_verify.py --lab 5 --env cloud.aws.env   # PASS nothing found

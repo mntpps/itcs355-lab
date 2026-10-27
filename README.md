@@ -365,6 +365,49 @@ Drift-triggered retraining makes the bad case fast. The detector fires within 15
 
 **Was the abstraction worth it?** Partly. It paid off where it was thin and the providers really are alike. Storage and serving moved in about a day and a half, and the service, the training code, the gate and the data contracts did not change. For what this course costs, that is cheap insurance. It did not pay off for everything that makes this an MLOps system: training jobs, pipelines, the registry, identity and scheduling. Those are about 80% of the migration estimate above, and the adapter covers none of them, because the providers differ in *kind* there, not just in name. An 11-method seam cannot hide those differences. Widening it to try would produce a lowest-common-denominator pipeline worse than either native one. The honest position is to keep the thin seam, and to choose lock-in deliberately for pipelines and the registry, knowing it costs about three weeks to leave.
 
+
+### Cost (Task 5)
+
+The full report is [`reports/lab5-cost.md`](reports/lab5-cost.md). The estimate was committed on 25 Oct, before Task 1 ran.
+
+| | Estimate | Actual, from billing |
+|---|---|---|
+| Lab 5 | ≈ 55 THB | **≈ 18.6 THB** (8.1 training, 10.5 shared registry, 0 serving, storage and monitoring) |
+| Term to date | 318 THB | **285.3 THB** ($8.45 Azure + $0.00 AWS), under the 800 THB limit |
+
+- **The gap, 66% under:** the estimate was driven by days, not runs. 34 of its 55 THB was the registry's flat fee over an assumed 6 days, and the lab took 1.9.
+- **Lab 5's marginal cost is 8.1 THB.** The registry is shared with the capstone and bills every day anyway.
+- **What the estimate missed:** node disk and network, a third on top of the VM rate.
+- **The `lab=5` tag never reaches the bill.** Azure ML bills a cluster's nodes to its workspace, so the cost was attributed by date and by resource.
+
+**Cost per 1,000 predictions:**
+- **Always-on Container App:** 0.132 / 0.037 / 0.021 THB at 5 / 25 / 80% utilisation.
+- **Lambda:** 0.0105 THB at any utilisation.
+
+**Applied optimisation: batched fleet scoring** (`scripts/score_fleet.py`). On Lambda, measured from AWS's own REPORT lines:
+- **Cost:** 0.010488 → **0.000135 THB per 1,000 predictions** (78× cheaper).
+- **Fleet:** 240 machines in 3 calls instead of 240.
+- **Rejected:** shrinking memory to 512 MB. It saved 6%, within the noise, for half the CPU.
+
+### Teardown (Task 6)
+
+`bash scripts/lab5_teardown.sh` lists what it will delete and asks first.
+- **Azure, by name:** the schedule, the `itcs355-lab5-cpu` cluster, the staging app, the three identities with their role assignments, and the custom role. It works by name because the capstone's cluster also carries `lab=5`, so deleting by tag would take it too.
+- **AWS, by tag:** everything tagged `lab=5`, plus the function's log group.
+- **Kept:** the registry, workspace, storage and Container Apps environment, all shared with the capstone.
+
+Run on 27 Oct, 20:16 Bangkok. Checked afterwards:
+- `az ml compute list`: only the capstone's `itcs3556688020-cpu`.
+- `az ml schedule list`: empty.
+- No resource tagged `lab=5`.
+- `teardown_verify.py` on AWS: **PASS, nothing found**.
+- By hand in both consoles: `reports/lab5/azure-rg-after-teardown.png` (filter `itcs355-`: 0 resources), and `aws-lambda-*-empty.png`, `aws-s3-empty.png`, `aws-ecr-empty.png` (Sydney).
+- The AWS CLI user `itcs355-cli` and its policy were deleted in the console last, since the script used them.
+
+**What the teardown itself got wrong:** the schedule step failed, because `az ml schedule delete` has no `--yes`. The script printed the error and carried on, leaving the schedule disabled but not deleted. The fixed command deleted it, and `az ml schedule list` confirmed it was gone. That is the "teardown reports success, resources remain" failure in small, and the reason for the hand check.
+
+**24-hour recheck:** pending (28 Oct).
+
 ---
 
 ## Checklist before you submit
