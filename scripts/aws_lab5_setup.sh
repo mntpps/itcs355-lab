@@ -106,7 +106,7 @@ ROLE_ARN="$(aws iam get-role --role-name "$ROLE" --query Role.Arn --output text)
 echo "  $ROLE_ARN: s3:GetObject on models/ only, plus its own logs"
 
 step "Lambda function $FUNCTION"
-ENV_VARS="Variables={CLOUD_PROVIDER=aws,PROJECT_ID=${STUDENT},REGION=${REGION},BLOB_URI=s3://${BUCKET}/itcs355,MODEL_URI=${MODEL_URI},MODEL_VERSION=3-aws,BUILD_SHA=${SHA},MODEL_REGISTRY_NAME=${MODEL_NAME}}"
+ENV_VARS="Variables={CLOUD_PROVIDER=aws,PROJECT_ID=${STUDENT},REGION=${REGION},BLOB_URI=s3://${BUCKET}/itcs355,MODEL_URI=${MODEL_URI},MODEL_VERSION=3-aws,BUILD_SHA=${SHA}}"
 if aws lambda get-function --function-name "$FUNCTION" --region "$REGION" >/dev/null 2>&1; then
   aws lambda update-function-code --function-name "$FUNCTION" --image-uri "$IMAGE" --region "$REGION" >/dev/null
   aws lambda wait function-updated-v2 --function-name "$FUNCTION" --region "$REGION"

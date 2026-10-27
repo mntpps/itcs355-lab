@@ -37,7 +37,13 @@ AWS = shutil.which("aws") or "aws"
 class AwsAdapter(CloudAdapter):
     def _client(self, service: str):
         import boto3
+        from botocore.config import Config
 
+        if service == "lambda":
+            # One attempt, and long enough for a cold start. botocore's defaults (60 s read
+            # timeout, retried) turned one slow cold start into four billed 60 s invocations.
+            return boto3.client(service, region_name=self.cfg.region,
+                                config=Config(read_timeout=120, retries={"total_max_attempts": 1}))
         return boto3.client(service, region_name=self.cfg.region)
 
     @staticmethod

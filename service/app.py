@@ -43,21 +43,16 @@ def _load_model():
     Loading per request is the commonest cause of a p99 that looks nothing like p50, and
     it is the first thing to check when your latency distribution has a long tail.
     """
-    name = os.environ.get("MODEL_REGISTRY_NAME")
-    version = os.environ.get("MODEL_VERSION")
-    if name and version:
-        import mlflow.sklearn  # imported lazily so tests can run without a registry
-
-        mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db"))
-        return mlflow.sklearn.load_model(f"models:/{name}/{version}")
-
     from pathlib import Path
 
     import joblib
 
     # Lab 5 Task 4: on a provider with no MLflow registry wired up (AWS here), the model
     # file is read from object storage THROUGH THE ADAPTER: the same download() the swap
-    # check exercises, so the service never names a provider.
+    # check exercises, so the service never names a provider. Checked first: an explicit
+    # file wins over registry settings that may be left over in the environment (on
+    # Lambda they sent MLflow to a sqlite file on a read-only disk, retrying until the
+    # 60 s timeout).
     uri = os.environ.get("MODEL_URI")
     if uri:
         from cloudlayer.factory import get_adapter
@@ -66,6 +61,14 @@ def _load_model():
         local = Path(os.environ.get("MODEL_CACHE", "/tmp/model.joblib"))
         get_adapter(config.load(strict=False)).download(uri, str(local))
         return joblib.load(local)
+
+    name = os.environ.get("MODEL_REGISTRY_NAME")
+    version = os.environ.get("MODEL_VERSION")
+    if name and version:
+        import mlflow.sklearn  # imported lazily so tests can run without a registry
+
+        mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db"))
+        return mlflow.sklearn.load_model(f"models:/{name}/{version}")
 
     # Fallback for local development and tests only. Submitting this is not acceptable:
     # your deployed service must load a registered version.

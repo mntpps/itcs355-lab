@@ -114,8 +114,10 @@ def test_service_reads_its_model_through_the_adapter(tmp_path, monkeypatch):
     monkeypatch.setenv("CLOUD_PROVIDER", "local")
     monkeypatch.setenv("MODEL_URI", f"local://{model_file}")
     monkeypatch.setenv("MODEL_CACHE", str(tmp_path / "cache" / "model.joblib"))
-    for k in ("MODEL_REGISTRY_NAME", "MODEL_VERSION"):
-        monkeypatch.delenv(k, raising=False)
+    # Registry settings left in the environment must not win over MODEL_URI: on Lambda
+    # they sent MLflow to a sqlite file on a read-only disk until the 60 s timeout.
+    monkeypatch.setenv("MODEL_REGISTRY_NAME", "itcs355-6688020")
+    monkeypatch.setenv("MODEL_VERSION", "3-aws")
     from service.app import _load_model
 
     model = _load_model()
