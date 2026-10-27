@@ -335,6 +335,36 @@ Drift-triggered retraining makes the bad case fast. The detector fires within 15
 
 **Chosen:** the weekly schedule, behind the contract tests and the gate. **Drift alerts go to a person, never to the trainer.** Accepted worst case: a subtle offset (under about 0.25 reference SD) that starts before a Monday run, passes the contract, and arrives together with a genuine recipe change, so the gate passes it. The model then under-flags until the next corrected week. Two defences, in order of value: a recipe change goes through a person rather than the schedule (the schedule only ever retrains production's own recipe, `model_kind` = production's), and the schedule can be paused (`python -m cloudlayer.pipelines unschedule`) whenever a drift alert is open.
 
+### Portability test (Task 4)
+
+**Audit:** `make portability-audit` passes. `src/`, `service/`, `monitoring/` and `tests/` contain no provider strings, and Lab 5 added none.
+
+**Swap:** AWS is the second provider. It implements `upload` and `download` on S3, and `invoke` on a Lambda function that runs **the same serving image** as Azure, plus the Lambda Web Adapter (`service/Dockerfile.lambda`). `scripts/aws_lab5_setup.sh` builds it. On 27 Oct, `python scripts/portability_swap_check.py --second-provider aws --env cloud.aws.env` passed all three methods against real AWS ([`reports/lab5-swap-check.txt`](reports/lab5-swap-check.txt)). The Lambda read v3's model from S3 *through the adapter's own `download()`* and scored the smoke test's healthy machine at 0.0007, the same as staging on Azure. The same script's first pass, the scaffold's "flip `CLOUD_PROVIDER` only" swap, fails all three, and that failure is the first finding.
+
+**Which method was hardest: `invoke`.** `upload` and `download` mapped one to one, about 20 lines each. `invoke` looks like a POST on both clouds, but on AWS it is not one:
+- A private Lambda is called through the Lambda API with an *event*. The adapter wraps the payload as a function-URL event, the Web Adapter replays it as HTTP into the unchanged FastAPI app, and the adapter unwraps the response.
+- The image needed an extension binary, and Lambda refuses Docker Desktop's default multi-manifest builds (`--provenance=false`).
+- Lambda's 10-second init limit, its read-only disk and botocore's silent retries turned one configuration mistake into four billed 60-second timeouts before the logs showed the cause.
+
+**Where the abstraction leaked and could not be hidden: what a model reference means.** On Azure, the service loads `models:/itcs355-6688020/3` from the MLflow registry the pipeline writes to. AWS has no such registry without SageMaker, so on AWS the reference is a file, `MODEL_URI=s3://…/models/v3/model.joblib`. The seam can make both *readable* through `download()`, but "which model is serving" is answered differently on each cloud. So are the gate's question, "what is production?", and the rollback ("tag v2 production again" versus "point at another file"). Three smaller leaks:
+- **Configuration is per provider.** The naive swap fails because `BLOB_URI`, the region name (`southeastasia` is not an AWS region) and the endpoint are all Azure values.
+- **`endpoint` has a different type on each cloud:** a URL on Azure, a function name on AWS.
+- **The AWS account itself constrained the design.** Its Free plan is enforced by a service control policy that allows only the sign-up region: `CreateBucket` was denied in `ap-southeast-1` and `us-east-1` and allowed in `ap-southeast-2`.
+
+**What a full migration would cost: about 13–17 engineering days**, on this repository's scale.
+
+| Piece | Days | Why |
+|---|---|---|
+| Already done: storage, invoke, image push, teardown, setup | 1.5 | this lab |
+| Training jobs (`submit_training`, `wait_training`) on SageMaker or AWS Batch | 2 | a different job model and log access |
+| Model registry: SageMaker Model Registry, or self-hosted MLflow on AWS | 2–3 | `role=production`, the gate's incumbent lookup and rollback all rewritten |
+| The pipeline: `compile_aws` to SageMaker Pipelines | 3–4 | ConditionStep / FailStep instead of the shell guard; per-step roles |
+| Deploy and rollout: Lambda versions and aliases, or ECS | 1 | `rollout_model` and the smoke-test gate |
+| Identity: IAM roles, GitHub OIDC to AWS, least-privilege policies | 1.5–2 | three identities again, and the removal tests again |
+| CI/CD, monitoring (CloudWatch metrics, EventBridge schedule), drift job | 2–3 | Labs 4–5 rewired |
+
+**Was the abstraction worth it?** Partly. It paid off where it was thin and the providers really are alike. Storage and serving moved in about a day and a half, and the service, the training code, the gate and the data contracts did not change. For what this course costs, that is cheap insurance. It did not pay off for everything that makes this an MLOps system: training jobs, pipelines, the registry, identity and scheduling. Those are about 80% of the migration estimate above, and the adapter covers none of them, because the providers differ in *kind* there, not just in name. An 11-method seam cannot hide those differences. Widening it to try would produce a lowest-common-denominator pipeline worse than either native one. The honest position is to keep the thin seam, and to choose lock-in deliberately for pipelines and the registry, knowing it costs about three weeks to leave.
+
 ---
 
 ## Checklist before you submit

@@ -1,0 +1,14 @@
+# python scripts/portability_swap_check.py --second-provider aws --env cloud.aws.env
+# run 2026-10-27 ~20:00 ICT, after scripts/aws_lab5_setup.sh (AWS account on the Free plan, ap-southeast-2)
+primary   azure
+secondary aws
+
+1. naive swap: same cloud.env, only the provider changed
+  [FAIL           ] upload   ValueError: expected s3://bucket/key, got 'https://itcs3556688020.blob.core.windows.net/itcs355/itcs355'
+  [FAIL           ] download ValueError: expected s3://bucket/key, got 'https://itcs3556688020.blob.core.windows.net/itcs355/itcs355/portability/probe.txt'
+  [FAIL           ] invoke   EndpointConnectionError: Could not connect to the endpoint URL: "https://lambda.southeastasia.amazonaws.com/2015-03-31/functions/itcs355-6688020/invocations"
+
+2. real swap: cloud.aws.env (endpoint itcs355-predict)
+  [PASS           ] upload   s3://itcs355-6688020-745248024126/itcs355/portability/probe.txt
+  [PASS           ] download round trip identical
+  [PASS           ] invoke   probability 0.0007, model_version 3-aws
