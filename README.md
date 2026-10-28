@@ -406,7 +406,13 @@ Run on 27 Oct, 20:16 Bangkok. Checked afterwards:
 
 **What the teardown itself got wrong:** the schedule step failed, because `az ml schedule delete` has no `--yes`. The script printed the error and carried on, leaving the schedule disabled but not deleted. The fixed command deleted it, and `az ml schedule list` confirmed it was gone. That is the "teardown reports success, resources remain" failure in small, and the reason for the hand check.
 
-**24-hour recheck:** pending (28 Oct).
+**24-hour recheck, 28 Oct 22:19 Bangkok** (26 hours after teardown):
+- `az resource list` filtered on `lab=5`: empty.
+- `az ml compute list`: only the capstone's `itcs3556688020-cpu`.
+- `az ml schedule list`: empty.
+- `aws s3 ls` fails with `InvalidAccessKeyId`, which confirms that the CLI user and its key are deleted. AWS can no longer be queried from the CLI, so the AWS evidence is the console check of 27 Oct above, plus Cost Explorer at $0.00.
+
+Nothing that Lab 5 created is still running or billing.
 
 ---
 
